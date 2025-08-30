@@ -1,4 +1,4 @@
-﻿"""
+"""
 EVM Assistant (Agents-as-Tools, Streamlit UI)
 
 What it does
@@ -154,6 +154,48 @@ def _reset_litellm_logging_worker() -> None:
 
 
 # =============================
+# Diagnostics helpers
+# =============================
+def _redact(val: Optional[str], keep: int = 4) -> str:
+    if not val:
+        return "-"
+    val = str(val)
+    if len(val) <= keep:
+        return "..."
+    return val[:keep] + "..."
+
+
+async def _ping_model(model_name: str) -> Tuple[bool, str]:
+    """Run a tiny health-check through the selected model.
+
+    Returns (ok, message) where ok indicates success and message provides detail.
+    """
+    test_agent = Agent(
+        name="HealthCheck",
+        instructions="Reply with exactly: OK",
+        tool_use_behavior="run_llm_again",
+    )
+    try:
+        res = await Runner.run(test_agent, "Say OK", run_config=RunConfig(model=model_name))
+        ok = (res.final_output or "").strip().upper() == "OK"
+        return ok, ("OK" if ok else f"Unexpected output: {res.final_output!r}")
+    except Exception as e:
+        return False, f"{type(e).__name__}: {e}"
+
+
+def _run_async_in_new_loop(coro):
+    """Run an async coroutine in a fresh event loop to avoid conflicts."""
+    loop = asyncio.new_event_loop()
+    try:
+        return loop.run_until_complete(coro)
+    finally:
+        try:
+            loop.close()
+        except Exception:
+            pass
+
+
+# =============================
 # URL param helpers (shareable links)
 # =============================
 def _load_url_params_into_state():
@@ -214,7 +256,7 @@ TRACE_KEY = "trace"
 TRACE_PH_KEY = "__trace_ph__"
 
 # =============================
-# Minimal theme (Edgeâ€‘inspired blue/green)
+# Minimal theme (Edge-inspired blue/green)
 # =============================
 def inject_theme():
     st.markdown(
@@ -270,24 +312,24 @@ def render_trace():
                 f"""
 <div class='trace-card' style=\"padding:12px;border-radius:10px;\">
   <div style=\"font-weight:700;color:#fff;\">{title}</div>
-  <div style=\"color:#cfe3ff;margin-top:6px;\">Reason: {details.get('reason','â€”')}</div>
-  <div style=\"color:#cfe3ff;\">Context: {details.get('context','â€”')}</div>
-  <div style=\"color:#9ad0ff;\">From: {details.get('from','â€”')} â€¢ To: {details.get('to','â€”')}</div>
+  <div style=\"color:#cfe3ff;margin-top:6px;\">Reason: {details.get('reason','-')}</div>
+  <div style=\"color:#cfe3ff;\">Context: {details.get('context','-')}</div>
+  <div style=\"color:#9ad0ff;\">From: {details.get('from','-')} | To: {details.get('to','-')}</div>
 </div>
                 """,
                 unsafe_allow_html=True,
             )
 
         elif kind == "tool_call":
-            by = details.get("by", "â€”") if isinstance(details, dict) else "â€”"
-            st.write(f"ðŸ› ï¸ **Tool called:** {title} (by: {by})")
+            by = details.get("by", "-") if isinstance(details, dict) else "-"
+            st.write(f"Tool called: {title} (by: {by})")
 
         elif kind == "tool_done":
-            by = details.get("by", "â€”") if isinstance(details, dict) else "â€”"
-            st.write(f"âœ… **Tool finished:** {title} (by: {by})")
+            by = details.get("by", "-") if isinstance(details, dict) else "-"
+            st.write(f"Tool finished: {title} (by: {by})")
 
         elif kind == "agent_result":
-            with st.expander(f"ðŸ“¤ {title}", expanded=False):
+            with st.expander(f"{title}", expanded=False):
                 st.write(details.get("text", ""))
 
 
@@ -328,24 +370,24 @@ def _render_trace_into_placeholder():
 
                 if kind == "handoff":
                     if compact:
-                        frm = details.get('from','â€”'); to = details.get('to','â€”'); reason = details.get('reason','â€”')
-                        st.write(f"ðŸ” Handoff: {frm} â†’ {to} â€” {reason}")
+                        frm = details.get('from','-'); to = details.get('to','-'); reason = details.get('reason','-')
+                        st.write(f"Handoff: {frm} -> {to} - {reason}")
                     else:
                         st.markdown(
                             f"""
-<div class=\"trace-card\" style=\"padding:12px;border-radius:10px;\">\n  <div style=\"font-weight:700;color:#fff;\">{title}</div>\n  <div style=\"color:#cfe3ff;margin-top:6px;\">Reason: {details.get('reason','â€”')}</div>\n  <div style=\"color:#cfe3ff;\">Context: {details.get('context', details.get('location','â€”'))}</div>\n  <div style=\"color:#9ad0ff;\">From: {details.get('from','â€”')} â€¢ To: {details.get('to','â€”')}</div>\n</div>
+<div class=\"trace-card\" style=\"padding:12px;border-radius:10px;\">\n  <div style=\"font-weight:700;color:#fff;\">{title}</div>\n  <div style=\"color:#cfe3ff;margin-top:6px;\">Reason: {details.get('reason','-')}</div>\n  <div style=\"color:#cfe3ff;\">Context: {details.get('context', details.get('location','-'))}</div>\n  <div style=\"color:#9ad0ff;\">From: {details.get('from','-')} | To: {details.get('to','-')}</div>\n</div>
                             """,
                             unsafe_allow_html=True,
                         )
                 elif kind == "tool_call":
-                    by = details.get("by", "â€”") if isinstance(details, dict) else "â€”"
-                    st.write(f"ðŸ› ï¸ Tool: {title} â€” by {by}")
+                    by = details.get("by", "-") if isinstance(details, dict) else "-"
+                    st.write(f"Tool: {title} - by {by}")
                 elif kind == "tool_done":
-                    by = details.get("by", "â€”") if isinstance(details, dict) else "â€”"
-                    st.write(f"âœ… Done: {title} â€” by {by}")
+                    by = details.get("by", "-") if isinstance(details, dict) else "-"
+                    st.write(f"Done: {title} - by {by}")
                 elif kind == "agent_result":
                     if not compact:
-                        with st.expander(f"ðŸ“¤ {title}", expanded=False):
+                        with st.expander(f"{title}", expanded=False):
                             st.write(details.get("text", ""))
         st.markdown("</div>", unsafe_allow_html=True)
 
@@ -438,15 +480,15 @@ def render_evms_colored_table(items: List[Dict[str, Any]], totals: Dict[str, Any
     ]
     tooltips = {
         "BAC": "Budget At Completion: total planned cost",
-        "PV": "Planned Value (BCWS): BAC Ã— planned % complete",
-        "EV": "Earned Value (BCWP): BAC Ã— actual % complete",
+        "PV": "Planned Value (BCWS): BAC x planned % complete",
+        "EV": "Earned Value (BCWP): BAC x actual % complete",
         "AC": "Actual Cost (ACWP): actual cost to date",
-        "CPI": "Cost Performance Index = EV / AC (â‰¥1.0 is on/under cost)",
-        "SPI": "Schedule Performance Index = EV / PV (â‰¥1.0 is on/ahead of schedule)",
-        "CV": "Cost Variance = EV âˆ’ AC (>0 favorable)",
-        "SV": "Schedule Variance = EV âˆ’ PV (>0 favorable)",
-        "EAC": "Estimate At Completion â‰ˆ BAC / CPI",
-        "ETC": "Estimate To Complete = EAC âˆ’ AC",
+        "CPI": "Cost Performance Index = EV / AC (>= 1.0 is on/under cost)",
+        "SPI": "Schedule Performance Index = EV / PV (>= 1.0 is on/ahead of schedule)",
+        "CV": "Cost Variance = EV - AC (>0 favorable)",
+        "SV": "Schedule Variance = EV - PV (>0 favorable)",
+        "EAC": "Estimate At Completion ~ BAC / CPI",
+        "ETC": "Estimate To Complete = EAC - AC",
         "Risk": "Derived from CPI/SPI and variances; thresholds configurable above",
         "OriginalEndDate": "Baseline planned end date",
         "ExpectedEndDate": "Current expected end date (if provided)",
@@ -482,20 +524,20 @@ def render_evms_colored_table(items: List[Dict[str, Any]], totals: Dict[str, Any
         if col == "SV":
             return "SV = EV - PV (>0 favorable)."
         if col == "EAC":
-            return "EAC â‰ˆ BAC / CPI."
+            return "EAC ~ BAC / CPI."
         if col == "ETC":
             return "ETC = EAC - AC."
         if col == "PV":
-            return "PV = BAC Ã— planned % complete."
+            return "PV = BAC x planned % complete."
         if col == "EV":
-            return "EV = BAC Ã— actual % complete."
+            return "EV = BAC x actual % complete."
         if col == "AC":
             return "Actual Cost to date."
         # For other columns, fall back to header tooltip if present
         return tooltips.get(col, "")
     def fmt(v):
         if v is None:
-            return "â€”"
+            return "-"
         return f"{v}"
     rows = []
     for it in items:
@@ -590,12 +632,12 @@ def render_cpi_spi_heatmap(items: List[Dict[str, Any]]):
             continue
         bins[(cb, sb)].append(it)
 
-    label = {"low": "< 0.95", "mid": "0.95â€“<1.0", "high": "â‰¥ 1.0"}
+    label = {"low": "< 0.95", "mid": "0.95-<1.0", "high": ">= 1.0"}
     color = {"low": "#b71c1c", "mid": "#ff8f00", "high": "#1b5e20"}
 
     html = [
         "<div style='margin-top:12px; overflow-x:auto; max-width:100%'>",
-        "<b>CPI Ã— SPI Heatmap</b>",
+        "<b>CPI x SPI Heatmap</b>",
         "<table style='margin-top:6px;border-collapse:collapse;width:100%'>",
         "<thead><tr><th></th>" + "".join(
             f"<th style='text-align:center;border-bottom:1px solid #444;padding:6px 8px'>SPI {label[c]}</th>" for c in ("low","mid","high")
@@ -961,7 +1003,7 @@ qa_agent = Agent(
 async def get_ingestion_summary(csv_text: str) -> str:
     log_event(
         "handoff",
-        "Handing off to Ingestion Agentâ€¦",
+        "Handing off to Ingestion Agent...",
         {"reason": "Parse and validate CSV", "context": "project_template.csv", "from": "EVM Orchestrator", "to": "Ingestion Agent"},
     )
     result = await Runner.run(
@@ -981,7 +1023,7 @@ async def get_ingestion_summary(csv_text: str) -> str:
 async def get_evms_report(csv_text: str, as_of_date: Optional[str] = None) -> str:
     log_event(
         "handoff",
-        "Handing off to EVM Calculatorâ€¦",
+        "Handing off to EVM Calculator...",
         {"reason": "Compute EVM metrics", "context": as_of_date or "today", "from": "EVM Orchestrator", "to": "EVM Calculator Agent"},
     )
     result = await Runner.run(
@@ -1002,7 +1044,7 @@ async def get_evms_report(csv_text: str, as_of_date: Optional[str] = None) -> st
 async def get_risk_assessment(evms_result_json: str) -> str:
     log_event(
         "handoff",
-        "Handing off to Risk Analystâ€¦",
+        "Handing off to Risk Analyst...",
         {"reason": "Identify and rank risks", "context": "CPI, SPI, CV, SV", "from": "EVM Orchestrator", "to": "Risk Analyst Agent"},
     )
     result = await Runner.run(
@@ -1029,7 +1071,7 @@ orchestrator_agent = Agent(
     1) Always parse/validate the CSV (string) first via `parse_and_validate_csv` or the ingestion tool.
     2) If valid, compute EVM metrics for the projects with `get_evms_report`.
     3) Then produce a risk assessment with `get_risk_assessment`.
-    4) Merge into one final answer: Overview, Portfolio Totals, Perâ€‘Project Highlights, Risks & Actions.
+    4) Merge into one final answer: Overview, Portfolio Totals, Per-Project Highlights, Risks & Actions.
     Keep responses concise and practical for PMs.
     """,
     tools=[get_ingestion_summary, get_evms_report, get_risk_assessment],
@@ -1057,7 +1099,7 @@ async def run_agent(csv_text: str, as_of_date: Optional[str]) -> str:
 # Streamlit UI
 # =============================
 def main():
-    st.set_page_config(page_title="EVM Assistant", page_icon="ðŸ“Š", layout="centered")
+    st.set_page_config(page_title="EVM Assistant", page_icon="EV", layout="centered")
     inject_theme()
     st.title("EVM Assistant")
     # Load shareable URL params (models, thresholds) before building widgets
@@ -1097,6 +1139,25 @@ def main():
     # Update URL so users can share current model/threshold settings
     _set_url_params_safe(md=_base_model_name(get_active_default_model()), ms=_base_model_name(get_active_summary_model()), cpi=str(cpi_thr), spi=str(spi_thr))
     _reset_litellm_logging_worker()
+
+    # Diagnostics panel
+    with st.expander("Diagnostics", expanded=False):
+        st.write("Environment (redacted)")
+        st.json({
+            "Provider": PROVIDER,
+            "DefaultModel": get_active_default_model(),
+            "SummaryModel": get_active_summary_model(),
+            "OPENAI_API_KEY": _redact(os.getenv("OPENAI_API_KEY")),
+            "OPENAI_PROJECT_ID": _redact(os.getenv("OPENAI_PROJECT_ID")),
+            "OPENAI_ORG_ID": _redact(os.getenv("OPENAI_ORG_ID")),
+            "GEMINI_API_KEY": _redact(os.getenv("GEMINI_API_KEY")),
+            "LITELLM_LOG": os.getenv("LITELLM_LOG", "-"),
+        })
+
+        if st.button("Run model health check"):
+            with st.spinner("Pinging selected model..."):
+                ok, msg = _run_async_in_new_loop(_ping_model(get_active_default_model()))
+            (st.success if ok else st.error)(msg)
 
     # Initialize persistent UI flags
     if "__trace_hide__" not in st.session_state:
@@ -1302,8 +1363,8 @@ def main():
                 st.markdown("<div class='banner-gradient' style='margin-bottom:8px'><b>Run Summary</b></div>", unsafe_allow_html=True)
                 st.write(f"Agents involved: {len(used_agents)}")
                 for a in used_agents:
-                    tools_txt = ", ".join(a["tools"]) if a.get("tools") else "â€”"
-                    st.markdown(f"- <b>{a['name']}</b> Â· tools: {tools_txt}", unsafe_allow_html=True)
+                    tools_txt = ", ".join(a["tools"]) if a.get("tools") else "-"
+                    st.markdown(f"- <b>{a['name']}</b> - tools: {tools_txt}", unsafe_allow_html=True)
 
             st.markdown("### Final Report")
             st.write(agent_response)
@@ -1494,16 +1555,16 @@ def main():
                 with st.expander("Formulas used", expanded=False):
                     st.markdown("""
                     - BAC: PlannedCost
-                    - Planned %: days elapsed from StartDate to the Asâ€‘of date, divided by total planned days (StartDate â†’ End); capped between 0% and 100%. End = ExpectedEndDate if provided, otherwise OriginalEndDate
-                    - PV: BAC Ã— Planned %
-                    - EV: BAC Ã— ProgressPercent_Manual/100
+                    - Planned %: days elapsed from StartDate to the As-of date, divided by total planned days (StartDate -> End); capped between 0% and 100%. End = ExpectedEndDate if provided, otherwise OriginalEndDate
+                    - PV: BAC x Planned %
+                    - EV: BAC x ProgressPercent_Manual/100
                     - AC: ActualCost
-                    - CV: EV âˆ’ AC
-                    - SV: EV âˆ’ PV
+                    - CV: EV - AC
+                    - SV: EV - PV
                     - CPI: EV / AC (if AC > 0)
                     - SPI: EV / PV (if PV > 0)
                     - EAC: BAC / CPI (if CPI > 0)
-                    - ETC: EAC âˆ’ AC
+                    - ETC: EAC - AC
                     """)
 
                 st.markdown("### Ask Rowshni a project related question")
@@ -1512,7 +1573,7 @@ def main():
                         "Question about these projects (answers use only this data)",
                         placeholder="e.g., How many projects are over budget?",
                     )
-                    st.caption("Examples: Which projects have SPI < 0.9? â€¢ Total AC by Dept â€¢ List projects with CV < 0")
+                    st.caption("Examples: Which projects have SPI < 0.9? | Total AC by Dept | List projects with CV < 0")
                     ask = st.form_submit_button("Ask")
                 if ask and question.strip():
                     qa_prompt = (
@@ -1601,8 +1662,8 @@ def main():
                 st.markdown("<div class='banner-gradient' style='margin-bottom:8px'><b>Run Summary</b></div>", unsafe_allow_html=True)
                 st.write(f"Agents involved: {len(used_agents)}")
                 for a in used_agents:
-                    tools_txt = ", ".join(a["tools"]) if a.get("tools") else "â€”"
-                    st.markdown(f"- <b>{a['name']}</b> Â· tools: {tools_txt}", unsafe_allow_html=True)
+                    tools_txt = ", ".join(a["tools"]) if a.get("tools") else "-"
+                    st.markdown(f"- <b>{a['name']}</b> - tools: {tools_txt}", unsafe_allow_html=True)
 
             st.markdown("### Final Report")
             st.write(agent_response)
@@ -1677,16 +1738,16 @@ def main():
                 with st.expander("Formulas used", expanded=False):
                     st.markdown("""
                     - BAC: PlannedCost
-                    - Planned %: days elapsed from StartDate to the Asâ€‘of date, divided by total planned days (StartDate â†’ End); capped between 0% and 100%. End = ExpectedEndDate if provided, otherwise OriginalEndDate
-                    - PV: BAC Ã— Planned %
-                    - EV: BAC Ã— ProgressPercent_Manual/100
+                    - Planned %: days elapsed from StartDate to the As-of date, divided by total planned days (StartDate -> End); capped between 0% and 100%. End = ExpectedEndDate if provided, otherwise OriginalEndDate
+                    - PV: BAC x Planned %
+                    - EV: BAC x ProgressPercent_Manual/100
                     - AC: ActualCost
-                    - CV: EV âˆ’ AC
-                    - SV: EV âˆ’ PV
+                    - CV: EV - AC
+                    - SV: EV - PV
                     - CPI: EV / AC (if AC > 0)
                     - SPI: EV / PV (if PV > 0)
                     - EAC: BAC / CPI (if CPI > 0)
-                    - ETC: EAC âˆ’ AC
+                    - ETC: EAC - AC
                     """)
 
                 st.markdown("### Ask Rowshni a project related question")
@@ -1695,7 +1756,7 @@ def main():
                         "Question about these projects (answers use only this data)",
                         placeholder="e.g., How many projects are over budget?",
                     )
-                    st.caption("Examples: Which projects have SPI < 0.9? â€¢ Total AC by Dept â€¢ List projects with CV < 0")
+                    st.caption("Examples: Which projects have SPI < 0.9? | Total AC by Dept | List projects with CV < 0")
                     ask = st.form_submit_button("Ask")
                 if ask and question.strip():
                     qa_prompt = (

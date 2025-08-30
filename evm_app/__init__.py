@@ -1,0 +1,2 @@
+# EVM Assistant package
+

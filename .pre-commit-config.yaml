@@ -1,0 +1,17 @@
+repos:
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.5.0
+    hooks:
+      - id: detect-secrets
+        name: detect-secrets (block on new secrets)
+        args:
+          - --baseline
+          - .secrets.baseline
+        exclude: |
+          (?x)^(
+            \.venv/|
+            __pycache__/|
+            samples/|
+            node_modules/
+          )
+

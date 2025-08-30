@@ -1,9 +1,14 @@
 # Ignore environment variable files
 .env
 .env*
+# Temp file accidentally created during debugging, must never be committed
+__tmp_env_before.txt
+__tmp_gitignore_before.txt
+__pycache__/
 # Ignore node_modules directory
 node_modules/
 # Ignore log files
 *.log
 # Ignore venv directories
 venv/
+.venv/

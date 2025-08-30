@@ -1,2 +1,4 @@
 openai-agents
 streamlit
+# Enable Gemini (and many providers) via LiteLLM
+litellm>=1.40.0

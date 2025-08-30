@@ -16,6 +16,7 @@ LLM Provider
 """
 
 from agents import Agent, Runner, function_tool
+from agents.run import RunConfig
 import asyncio
 import streamlit as st
 from dotenv import load_dotenv
@@ -27,6 +28,129 @@ import os
 from typing import Any, Dict, List, Optional, Tuple
 
 load_dotenv()
+
+
+# =============================
+# Model selection
+# =============================
+def _resolve_default_model() -> str:
+    """Choose the default model, supporting Gemini via LiteLLM.
+
+    Priority:
+    - AGENTS_DEFAULT_MODEL (app-specific)
+    - OPENAI_DEFAULT_MODEL (fallback)
+    - gpt-4o-mini (final fallback)
+
+    If the chosen value looks like a Gemini model (e.g., "gemini-1.5-pro" or "gemini-1.5-flash"),
+    route through LiteLLM by prefixing with "litellm/gemini/".
+    """
+    env_val = os.getenv("AGENTS_DEFAULT_MODEL") or os.getenv("OPENAI_DEFAULT_MODEL")
+    if env_val:
+        val = env_val.strip()
+        low = val.lower()
+        if low.startswith("gemini") and not low.startswith("litellm/"):
+            return f"litellm/gemini/{val}"
+        return val
+    return "gpt-4o-mini"
+
+
+DEFAULT_MODEL = _resolve_default_model()
+PROVIDER = "LiteLLM" if DEFAULT_MODEL.lower().startswith("litellm/") else "OpenAI"
+
+# Optional: allow a different model for specific agents (e.g., Summary)
+def _resolve_model(name: str) -> str:
+    low = name.strip().lower()
+    if low.startswith("gemini") and not low.startswith("litellm/"):
+        return f"litellm/gemini/{name.strip()}"
+    return name.strip()
+
+# Secondary/agent-specific model (defaults to a faster Gemini)
+SUMMARY_MODEL = _resolve_model(os.getenv("AGENTS_SUMMARY_MODEL", "gemini-1.5-flash"))
+
+
+def _base_model_name(name: str) -> str:
+    """Return provider-agnostic base name (e.g., 'gemini-1.5-pro')."""
+    if not name:
+        return name
+    low = name.strip().lower()
+    if low.startswith("litellm/gemini/"):
+        return name.split("/", 2)[-1]
+    return name
+
+
+def get_active_default_model() -> str:
+    """Resolved active model for orchestrator/agents (UI override > env)."""
+    ui_val = None
+    try:
+        import streamlit as _st  # local import to avoid issues in non-UI contexts
+        ui_val = _st.session_state.get("__model_default__")
+    except Exception:
+        pass
+    if ui_val:
+        return _resolve_model(ui_val)
+    return DEFAULT_MODEL
+
+
+def get_active_summary_model() -> str:
+    """Resolved active model for summary (UI override > env)."""
+    ui_val = None
+    try:
+        import streamlit as _st  # local import to avoid issues in non-UI contexts
+        ui_val = _st.session_state.get("__model_summary__")
+    except Exception:
+        pass
+    if ui_val:
+        return _resolve_model(ui_val)
+    return SUMMARY_MODEL
+
+# Keep LiteLLM logs quieter and suppress benign shutdown noise
+if PROVIDER == "LiteLLM":
+    if not os.getenv("LITELLM_LOG"):
+        os.environ["LITELLM_LOG"] = "INFO"
+    try:
+        import logging
+
+        _lite_logger = logging.getLogger("LiteLLM")
+
+        class _IgnoreLiteCancelled(logging.Filter):
+            def filter(self, record):
+                return "LoggingWorker cancelled" not in record.getMessage()
+
+        _lite_logger.addFilter(_IgnoreLiteCancelled())
+    except Exception:
+        # If logging isn't available yet, skip filtering.
+        pass
+
+
+def _reset_litellm_logging_worker() -> None:
+    """Best-effort reset of LiteLLM's background logging worker.
+
+    Streamlit frequently recreates event loops between reruns; LiteLLM's global
+    LoggingWorker binds its queue to the loop at creation time. This ensures the
+    worker is reset so it rebinds cleanly to the current loop when first used.
+    """
+    if PROVIDER != "LiteLLM":
+        return
+    try:
+        import asyncio
+        from litellm.litellm_core_utils.logging_worker import GLOBAL_LOGGING_WORKER
+
+        try:
+            loop = asyncio.get_event_loop()
+            if not loop.is_running():
+                loop.run_until_complete(GLOBAL_LOGGING_WORKER.stop())
+        except Exception:
+            # If we can't synchronously stop, continue to hard reset below
+            pass
+
+        # Hard reset internal state so the next start() creates a fresh queue/task on this loop
+        try:
+            GLOBAL_LOGGING_WORKER._queue = None  # type: ignore[attr-defined]
+            GLOBAL_LOGGING_WORKER._worker_task = None  # type: ignore[attr-defined]
+        except Exception:
+            pass
+    except Exception:
+        pass
 
 
 # =============================
@@ -724,6 +848,7 @@ async def get_ingestion_summary(csv_text: str) -> str:
             "If valid, briefly summarize row count and note any extra headers. "
             "If invalid, list missing headers.\n\nCSV:\n" + csv_text
         ),
+        run_config=RunConfig(model=get_active_default_model()),
     )
     log_event("agent_result", "Ingestion Agent response", {"text": result.final_output})
     return result.final_output
@@ -744,6 +869,7 @@ async def get_evms_report(csv_text: str, as_of_date: Optional[str] = None) -> st
             f"AsOf: {as_of_date or date.today().isoformat()}\n"
             f"CSV:\n{csv_text}"
         ),
+        run_config=RunConfig(model=get_active_default_model()),
     )
     log_event("agent_result", "EVM Calculator response", {"text": result.final_output})
     return result.final_output
@@ -763,6 +889,7 @@ async def get_risk_assessment(evms_result_json: str) -> str:
             "and propose corrective actions.\n\n"
             f"EVM JSON: {evms_result_json}"
         ),
+        run_config=RunConfig(model=get_active_default_model()),
     )
     log_event("agent_result", "Risk Analyst response", {"text": result.final_output})
     return result.final_output
@@ -795,7 +922,11 @@ async def run_agent(csv_text: str, as_of_date: Optional[str]) -> str:
         f"AsOf: {as_of_date or date.today().isoformat()}\n"
         f"CSV:\n{csv_text}"
     )
-    result = await Runner.run(orchestrator_agent, prompt)
+    result = await Runner.run(
+        orchestrator_agent,
+        prompt,
+        run_config=RunConfig(model=get_active_default_model()),
+    )
     return result.final_output
 
 
@@ -806,6 +937,32 @@ def main():
     st.set_page_config(page_title="EVM Assistant", page_icon="📊", layout="centered")
     inject_theme()
     st.title("EVM Assistant")
+
+    # Live model switchers (Gemini variants)
+    model_options = [
+        "gemini-1.5-pro",
+        "gemini-1.5-flash",
+    ]
+    col_m1, col_m2 = st.columns(2)
+    with col_m1:
+        st.selectbox(
+            "Agents' Model",
+            options=model_options,
+            index=(model_options.index(_base_model_name(DEFAULT_MODEL)) if _base_model_name(DEFAULT_MODEL) in model_options else 0),
+            key="__model_default__",
+            help="Model used by the orchestrator and most agents",
+        )
+    with col_m2:
+        st.selectbox(
+            "Summary Model",
+            options=model_options,
+            index=(model_options.index(_base_model_name(SUMMARY_MODEL)) if _base_model_name(SUMMARY_MODEL) in model_options else 1),
+            key="__model_summary__",
+            help="Faster model recommended for summaries",
+        )
+
+    st.caption(f"Model: {get_active_default_model()}  |  Summary Model: {get_active_summary_model()}  |  Provider: {PROVIDER}")
+    _reset_litellm_logging_worker()
 
     # Initialize persistent UI flags
     if "__trace_hide__" not in st.session_state:
@@ -944,7 +1101,13 @@ def main():
                             f"Risks: {json.dumps(risks[:8])}\n"
                             "Return 4-6 bullets max, with concrete guidance."
                         )
-                        summary = asyncio.run(Runner.run(summary_agent, summary_prompt))
+                        summary = asyncio.run(
+                            Runner.run(
+                                summary_agent,
+                                summary_prompt,
+                                run_config=RunConfig(model=get_active_summary_model()),
+                            )
+                        )
                         agent_response = summary.final_output
                     else:
                         agent_response = asyncio.run(run_agent(csv_text, as_of_str))
@@ -1080,7 +1243,13 @@ def main():
                         f"Items: {json.dumps(filtered_items)}\n"
                         f"Question: {question.strip()}"
                     )
-                    qa_result = asyncio.run(Runner.run(qa_agent, qa_prompt))
+                    qa_result = asyncio.run(
+                        Runner.run(
+                            qa_agent,
+                            qa_prompt,
+                            run_config=RunConfig(model=get_active_default_model()),
+                        )
+                    )
                     resp = (qa_result.final_output or "").strip()
                     if "OUT_OF_SCOPE" in resp:
                         st.info("Rowshni can only answer questions related to the projects data provided")
@@ -1257,7 +1426,13 @@ def main():
                         f"Items: {json.dumps(filtered_items)}\n"
                         f"Question: {question.strip()}"
                     )
-                    qa_result = asyncio.run(Runner.run(qa_agent, qa_prompt))
+                    qa_result = asyncio.run(
+                        Runner.run(
+                            qa_agent,
+                            qa_prompt,
+                            run_config=RunConfig(model=get_active_default_model()),
+                        )
+                    )
                     resp = (qa_result.final_output or "").strip()
                     if "OUT_OF_SCOPE" in resp:
                         st.info("Rowshni can only answer questions related to the projects data provided")

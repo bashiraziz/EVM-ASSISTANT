@@ -315,6 +315,9 @@ EXPECTED_HEADERS = [
     "ContractType",
 ]
 
+RISK_CPI_THRESHOLD: float = 0.9
+RISK_SPI_THRESHOLD: float = 0.9
+
 
 # =============================
 # UI helpers (sample file, colored table)
@@ -338,9 +341,14 @@ def _compute_portfolio_from_csv_for_ui(csv_text: str, as_of_date: Optional[str])
     f = io.StringIO(csv_text or "")
     reader = csv.DictReader(f)
     items = []
+    row_errors: List[str] = []
     as_of = datetime.strptime(as_of_date, "%Y-%m-%d").date() if as_of_date else date.today()
-    for r in reader:
-        items.append(_compute_evms_row({k: (v or "").strip() for k, v in r.items()}, as_of))
+    for idx, r in enumerate(reader, start=2):  # start=2 to account for header line
+        raw = {k: (v or "").strip() for k, v in r.items()}
+        try:
+            items.append(_compute_evms_row(raw, as_of))
+        except Exception as e:
+            row_errors.append(f"Row {idx}: {e}")
 
     def sumf(key: str) -> float:
         return round(sum((x.get(key) or 0.0) for x in items), 2)
@@ -356,7 +364,7 @@ def _compute_portfolio_from_csv_for_ui(csv_text: str, as_of_date: Optional[str])
         "SV": round(sumf("EV") - sumf("PV"), 2),
         "AsOf": as_of.isoformat(),
     }
-    return items, totals
+    return items, totals, row_errors
 
 
 def _score_color(val: Optional[float]) -> str:
@@ -374,6 +382,63 @@ def render_evms_colored_table(items: List[Dict[str, Any]], totals: Dict[str, Any
         "ProjectID", "ProjectName", "PM", "Dept", "Status", "StartDate", "OriginalEndDate", "ExpectedEndDate",
         "BAC", "PV", "EV", "AC", "CPI", "SPI", "CV", "SV", "EAC", "ETC", "Risk"
     ]
+    tooltips = {
+        "BAC": "Budget At Completion: total planned cost",
+        "PV": "Planned Value (BCWS): BAC × planned % complete",
+        "EV": "Earned Value (BCWP): BAC × actual % complete",
+        "AC": "Actual Cost (ACWP): actual cost to date",
+        "CPI": "Cost Performance Index = EV / AC (≥1.0 is on/under cost)",
+        "SPI": "Schedule Performance Index = EV / PV (≥1.0 is on/ahead of schedule)",
+        "CV": "Cost Variance = EV − AC (>0 favorable)",
+        "SV": "Schedule Variance = EV − PV (>0 favorable)",
+        "EAC": "Estimate At Completion ≈ BAC / CPI",
+        "ETC": "Estimate To Complete = EAC − AC",
+        "Risk": "Derived from CPI/SPI and variances; thresholds configurable above",
+        "OriginalEndDate": "Baseline planned end date",
+        "ExpectedEndDate": "Current expected end date (if provided)",
+        "StartDate": "Project start date",
+        "ProjectID": "Identifier from your CSV",
+        "ProjectName": "Name from your CSV",
+        "PM": "Project Manager",
+        "Dept": "Department or cost center",
+        "Status": "Project status from your CSV",
+    }
+
+    def _cell_tooltip(row: Dict[str, Any], col: str, val: Any) -> str:
+        """Return a concise tooltip for a cell value, including active thresholds where relevant."""
+        if val is None or val == "":
+            return ""
+        try:
+            v = float(val) if isinstance(val, (int, float, str)) else None
+        except Exception:
+            v = None
+
+        if col == "CPI":
+            tip = f"CPI = EV / AC. Threshold: < {RISK_CPI_THRESHOLD} flagged low."
+            if v is not None:
+                tip += f" Value: {v}."
+            return tip
+        if col == "SPI":
+            tip = f"SPI = EV / PV. Threshold: < {RISK_SPI_THRESHOLD} flagged low."
+            if v is not None:
+                tip += f" Value: {v}."
+            return tip
+        if col == "CV":
+            return "CV = EV - AC (>0 favorable)."
+        if col == "SV":
+            return "SV = EV - PV (>0 favorable)."
+        if col == "EAC":
+            return "EAC ≈ BAC / CPI."
+        if col == "ETC":
+            return "ETC = EAC - AC."
+        if col == "PV":
+            return "PV = BAC × planned % complete."
+        if col == "EV":
+            return "EV = BAC × actual % complete."
+        if col == "AC":
+            return "Actual Cost to date."
+        # For other columns, fall back to header tooltip if present
+        return tooltips.get(col, "")
     def fmt(v):
         if v is None:
             return "—"
@@ -389,7 +454,8 @@ def render_evms_colored_table(items: List[Dict[str, Any]], totals: Dict[str, Any
         "<div style='margin-top:12px; overflow-x:auto; max-width:100%; max-height:60vh; overflow-y:auto'>",
         "<table style='border-collapse:collapse;width:100%'>",
         "<thead class='table-head'><tr>" + "".join(
-            f"<th style='text-align:left;padding:8px 10px'>{c}</th>" for c in cols
+            (lambda _c: f"<th style='text-align:left;padding:8px 10px;cursor:help' title=\"{tooltips.get(_c, '')}\">{_c}</th>") (c)
+            for c in cols
         ) + "</tr></thead>",
         "<tbody>"
     ]
@@ -403,7 +469,10 @@ def render_evms_colored_table(items: List[Dict[str, Any]], totals: Dict[str, Any
             if c == "Risk":
                 color = {"high": "#b71c1c", "medium": "#ff8f00", "low": "#1b5e20"}.get(str(val), "#444")
                 style += f"background:{color};color:#fff;font-weight:600;"
-            html.append(f"<td style='{style}'>{fmt(val)}</td>")
+            title = _cell_tooltip(r, c, val)
+            if title:
+                style += "cursor:help;"
+            html.append(f"<td style='{style}' title=\"{title}\">{fmt(val)}</td>")
         html.append("</tr>")
     html.append("</tbody>")
     html.append("</table>")
@@ -428,9 +497,9 @@ def _risk_level_and_reasons(it: Dict[str, Any]) -> Tuple[str, List[str]]:
     spi = it.get("SPI")
     cv = it.get("CV")
     sv = it.get("SV")
-    if cpi is not None and cpi < 0.9:
+    if cpi is not None and cpi < RISK_CPI_THRESHOLD:
         reasons.append(f"CPI low ({cpi})")
-    if spi is not None and spi < 0.9:
+    if spi is not None and spi < RISK_SPI_THRESHOLD:
         reasons.append(f"SPI low ({spi})")
     if cv is not None and cv < 0:
         reasons.append(f"Over cost (CV={cv})")
@@ -738,9 +807,9 @@ def assess_risks(evms_result_json: str) -> Dict[str, Any]:
         cv = it.get("CV")
         sv = it.get("SV")
 
-        if cpi is not None and cpi < 0.9:
+        if cpi is not None and cpi < RISK_CPI_THRESHOLD:
             reasons.append(f"CPI low ({cpi})")
-        if spi is not None and spi < 0.9:
+        if spi is not None and spi < RISK_SPI_THRESHOLD:
             reasons.append(f"SPI low ({spi})")
         if cv is not None and cv < 0:
             reasons.append(f"Over cost (CV={cv})")
@@ -938,12 +1007,12 @@ def main():
     inject_theme()
     st.title("EVM Assistant")
 
-    # Live model switchers (Gemini variants)
+    # Live model switchers (Gemini variants) and risk thresholds
     model_options = [
         "gemini-1.5-pro",
         "gemini-1.5-flash",
     ]
-    col_m1, col_m2 = st.columns(2)
+    col_m1, col_m2, col_thr = st.columns([2,2,3])
     with col_m1:
         st.selectbox(
             "Agents' Model",
@@ -961,7 +1030,14 @@ def main():
             help="Faster model recommended for summaries",
         )
 
-    st.caption(f"Model: {get_active_default_model()}  |  Summary Model: {get_active_summary_model()}  |  Provider: {PROVIDER}")
+    with col_thr:
+        st.caption("Risk thresholds")
+        cpi_thr = st.slider("CPI low if <", min_value=0.5, max_value=1.0, value=float(RISK_CPI_THRESHOLD), step=0.01)
+        spi_thr = st.slider("SPI low if <", min_value=0.5, max_value=1.0, value=float(RISK_SPI_THRESHOLD), step=0.01)
+        globals()["RISK_CPI_THRESHOLD"] = float(cpi_thr)
+        globals()["RISK_SPI_THRESHOLD"] = float(spi_thr)
+
+    st.caption(f"Model: {get_active_default_model()}  |  Summary Model: {get_active_summary_model()}  |  Provider: {PROVIDER}  |  Thresholds: CPI<{cpi_thr}, SPI<{spi_thr}")
     _reset_litellm_logging_worker()
 
     # Initialize persistent UI flags
@@ -989,16 +1065,11 @@ def main():
         "and summarize portfolio health, risks, and suggestions."
     )
 
-    # Sample downloader
-    with st.expander("Need a sample CSV?", expanded=False):
-        st.caption("Download a ready-to-use template with example rows.")
-        sample_text = get_sample_csv_text()
-        st.download_button(
-            "Download sample CSV",
-            data=sample_text,
-            file_name="evms_sample.csv",
-            mime="text/csv",
-        )
+    # Template download + inline preview
+    sample_text = get_sample_csv_text()
+    st.download_button("Get CSV Template", data=sample_text, file_name="evms_sample.csv", mime="text/csv")
+    with st.expander("See template headers", expanded=False):
+        st.code(sample_text.splitlines()[0] + "\n...", language="csv")
 
     as_of_date = st.date_input("As-of date (optional)")
     mode = st.radio("Mode", ["Fast (local compute + 1 summary)", "Agentic (multi-agent with handoffs)"], index=1, help="Fast mode avoids extra agent hops for speed.")
@@ -1081,8 +1152,47 @@ def main():
             with st.status("Analyzing portfolio…", expanded=True) as status:
                 try:
                     if mode.startswith("Fast"):
+                        # Offer header mapping if needed (robust header detection)
+                        try:
+                            _hdr_reader = csv.DictReader(io.StringIO(csv_text or ""))
+                            file_headers = _hdr_reader.fieldnames or []
+                        except Exception:
+                            file_headers = []
+                        missing = [h for h in EXPECTED_HEADERS if h not in file_headers]
+                        if missing:
+                            st.warning("Headers differ from the template. Map columns to continue.")
+                            MISSING_SENTINEL = "<not present>"
+                            options = [MISSING_SENTINEL, *file_headers]
+                            mapping = {}
+                            with st.form("header_map_form"):
+                                for h in EXPECTED_HEADERS:
+                                    default_index = options.index(h) if h in options else 0
+                                    mapping[h] = st.selectbox(f"Map to '{h}'", options=options, index=default_index, key=f"map_{h}")
+                                apply = st.form_submit_button("Apply Mapping & Continue")
+                            if apply:
+                                fsrc = io.StringIO(csv_text)
+                                reader = csv.DictReader(fsrc)
+                                fout = io.StringIO()
+                                writer = csv.DictWriter(fout, fieldnames=EXPECTED_HEADERS)
+                                writer.writeheader()
+                                for row in reader:
+                                    new_row = {}
+                                    for exp in EXPECTED_HEADERS:
+                                        src = mapping.get(exp)
+                                        new_row[exp] = row.get(src, "") if src and src != MISSING_SENTINEL else ""
+                                    writer.writerow(new_row)
+                                csv_text = fout.getvalue()
+                            else:
+                                st.info("Submit the mapping form to proceed.")
+                                st.session_state["__is_running__"] = False
+                                return
+
                         # Pure local compute for speed; 1 LLM call for narrative.
-                        items, totals = _compute_portfolio_from_csv_for_ui(csv_text, as_of_str)
+                        items, totals, row_errors = _compute_portfolio_from_csv_for_ui(csv_text, as_of_str)
+                        if row_errors:
+                            st.warning("Some rows had issues (bad date/number). Showing first 5:")
+                            for e in row_errors[:5]:
+                                st.text(e)
                         # Build a compact risk list
                         risks = []
                         for it in items:
@@ -1144,7 +1254,7 @@ def main():
                     # Already computed above
                     pass
                 else:
-                    items, totals = _compute_portfolio_from_csv_for_ui(csv_text, as_of_str)
+                    items, totals, _ = _compute_portfolio_from_csv_for_ui(csv_text, as_of_str)
 
                 # Heatmap ahead of filters for quick scan
                 st.markdown("### Portfolio Heatmap")
@@ -1212,6 +1322,14 @@ def main():
                 st.markdown("### Computed Metrics")
                 items_page = filtered_items[:rows_to_show]
                 render_evms_colored_table(items_page, filtered_totals)
+                with st.expander("What's this?", expanded=False):
+                    st.markdown(
+                        "- CPI: Cost Performance Index = EV / AC. < 1.0 means over cost.\n"
+                        "- SPI: Schedule Performance Index = EV / PV. < 1.0 means behind schedule.\n"
+                        "- EAC: Estimate At Completion = BAC / CPI.\n"
+                        "- ETC: Estimate To Complete = EAC - AC.\n"
+                        f"- Risk thresholds in use: CPI < {RISK_CPI_THRESHOLD}, SPI < {RISK_SPI_THRESHOLD}."
+                    )
 
                 with st.expander("Formulas used", expanded=False):
                     st.markdown("""

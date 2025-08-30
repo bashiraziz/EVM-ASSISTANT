@@ -1,0 +1,4 @@
+ProjectID,ProjectName,Customer,CustomerContact,PM,Dept,PlannedCost,ActualCost,StartDate,EndDate,Status,ProgressPercent_Manual,ContractType
+P1001,New Website,Acme Corp,alice@acme.com,Sam,IT,100000,45000,2025-01-01,2025-12-31,Active,40,Fixed Price
+P1002,Mobile App,Globex,bob@globex.com,Kim,Product,200000,130000,2025-02-01,2025-11-30,Active,55,Time & Materials
+P1003,Data Migration,Initech,carol@initech.com,Raj,Ops,150000,90000,2025-03-15,2025-09-15,Active,35,Fixed Price

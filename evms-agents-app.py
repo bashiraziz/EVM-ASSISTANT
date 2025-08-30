@@ -1,4 +1,4 @@
-"""
+﻿"""
 EVM Assistant (Agents-as-Tools, Streamlit UI)
 
 What it does
@@ -154,13 +154,67 @@ def _reset_litellm_logging_worker() -> None:
 
 
 # =============================
+# URL param helpers (shareable links)
+# =============================
+def _load_url_params_into_state():
+    try:
+        import streamlit as _st
+        # Prefer modern API; fall back to experimental on older Streamlit
+        try:
+            qp = dict(_st.query_params)
+        except Exception:
+            qp = _st.experimental_get_query_params() or {}
+        # Models
+        if "md" in qp and qp["md"]:
+            _st.session_state.setdefault("__model_default__", (qp["md"][0] if isinstance(qp["md"], list) else qp["md"]))
+        if "ms" in qp and qp["ms"]:
+            _st.session_state.setdefault("__model_summary__", (qp["ms"][0] if isinstance(qp["ms"], list) else qp["ms"]))
+        # Thresholds
+        global RISK_CPI_THRESHOLD, RISK_SPI_THRESHOLD
+        if "cpi" in qp and qp["cpi"]:
+            try:
+                RISK_CPI_THRESHOLD = float(qp["cpi"][0] if isinstance(qp["cpi"], list) else qp["cpi"])
+            except Exception:
+                pass
+        if "spi" in qp and qp["spi"]:
+            try:
+                RISK_SPI_THRESHOLD = float(qp["spi"][0] if isinstance(qp["spi"], list) else qp["spi"])
+            except Exception:
+                pass
+        # Filters are applied later when available; stash raw values
+        for key, st_key in (("pm", "__flt_pms__"), ("dept", "__flt_depts__"), ("status", "__flt_status__")):
+            if key in qp and qp[key]:
+                raw = qp[key]
+                if isinstance(raw, list):
+                    raw = raw[0]
+                _st.session_state.setdefault(st_key, [x for x in str(raw).split(",") if x])
+    except Exception:
+        pass
+
+
+def _set_url_params_safe(**params: str):
+    try:
+        import streamlit as _st
+        clean = {k: v for k, v in params.items() if v is not None and v != ""}
+        if clean:
+            try:
+                # Modern API: mutate st.query_params (doesn't require full replace)
+                for k, v in clean.items():
+                    _st.query_params[k] = v
+            except Exception:
+                _st.experimental_set_query_params(**clean)
+    except Exception:
+        pass
+
+
+# =============================
 # Trace utilities
 # =============================
 TRACE_KEY = "trace"
 TRACE_PH_KEY = "__trace_ph__"
 
 # =============================
-# Minimal theme (Edge‑inspired blue/green)
+# Minimal theme (Edgeâ€‘inspired blue/green)
 # =============================
 def inject_theme():
     st.markdown(
@@ -216,24 +270,24 @@ def render_trace():
                 f"""
 <div class='trace-card' style=\"padding:12px;border-radius:10px;\">
   <div style=\"font-weight:700;color:#fff;\">{title}</div>
-  <div style=\"color:#cfe3ff;margin-top:6px;\">Reason: {details.get('reason','—')}</div>
-  <div style=\"color:#cfe3ff;\">Context: {details.get('context','—')}</div>
-  <div style=\"color:#9ad0ff;\">From: {details.get('from','—')} • To: {details.get('to','—')}</div>
+  <div style=\"color:#cfe3ff;margin-top:6px;\">Reason: {details.get('reason','â€”')}</div>
+  <div style=\"color:#cfe3ff;\">Context: {details.get('context','â€”')}</div>
+  <div style=\"color:#9ad0ff;\">From: {details.get('from','â€”')} â€¢ To: {details.get('to','â€”')}</div>
 </div>
                 """,
                 unsafe_allow_html=True,
             )
 
         elif kind == "tool_call":
-            by = details.get("by", "—") if isinstance(details, dict) else "—"
-            st.write(f"🛠️ **Tool called:** {title} (by: {by})")
+            by = details.get("by", "â€”") if isinstance(details, dict) else "â€”"
+            st.write(f"ðŸ› ï¸ **Tool called:** {title} (by: {by})")
 
         elif kind == "tool_done":
-            by = details.get("by", "—") if isinstance(details, dict) else "—"
-            st.write(f"✅ **Tool finished:** {title} (by: {by})")
+            by = details.get("by", "â€”") if isinstance(details, dict) else "â€”"
+            st.write(f"âœ… **Tool finished:** {title} (by: {by})")
 
         elif kind == "agent_result":
-            with st.expander(f"📤 {title}", expanded=False):
+            with st.expander(f"ðŸ“¤ {title}", expanded=False):
                 st.write(details.get("text", ""))
 
 
@@ -274,24 +328,24 @@ def _render_trace_into_placeholder():
 
                 if kind == "handoff":
                     if compact:
-                        frm = details.get('from','—'); to = details.get('to','—'); reason = details.get('reason','—')
-                        st.write(f"🔁 Handoff: {frm} → {to} — {reason}")
+                        frm = details.get('from','â€”'); to = details.get('to','â€”'); reason = details.get('reason','â€”')
+                        st.write(f"ðŸ” Handoff: {frm} â†’ {to} â€” {reason}")
                     else:
                         st.markdown(
                             f"""
-<div class=\"trace-card\" style=\"padding:12px;border-radius:10px;\">\n  <div style=\"font-weight:700;color:#fff;\">{title}</div>\n  <div style=\"color:#cfe3ff;margin-top:6px;\">Reason: {details.get('reason','—')}</div>\n  <div style=\"color:#cfe3ff;\">Context: {details.get('context', details.get('location','—'))}</div>\n  <div style=\"color:#9ad0ff;\">From: {details.get('from','—')} • To: {details.get('to','—')}</div>\n</div>
+<div class=\"trace-card\" style=\"padding:12px;border-radius:10px;\">\n  <div style=\"font-weight:700;color:#fff;\">{title}</div>\n  <div style=\"color:#cfe3ff;margin-top:6px;\">Reason: {details.get('reason','â€”')}</div>\n  <div style=\"color:#cfe3ff;\">Context: {details.get('context', details.get('location','â€”'))}</div>\n  <div style=\"color:#9ad0ff;\">From: {details.get('from','â€”')} â€¢ To: {details.get('to','â€”')}</div>\n</div>
                             """,
                             unsafe_allow_html=True,
                         )
                 elif kind == "tool_call":
-                    by = details.get("by", "—") if isinstance(details, dict) else "—"
-                    st.write(f"🛠️ Tool: {title} — by {by}")
+                    by = details.get("by", "â€”") if isinstance(details, dict) else "â€”"
+                    st.write(f"ðŸ› ï¸ Tool: {title} â€” by {by}")
                 elif kind == "tool_done":
-                    by = details.get("by", "—") if isinstance(details, dict) else "—"
-                    st.write(f"✅ Done: {title} — by {by}")
+                    by = details.get("by", "â€”") if isinstance(details, dict) else "â€”"
+                    st.write(f"âœ… Done: {title} â€” by {by}")
                 elif kind == "agent_result":
                     if not compact:
-                        with st.expander(f"📤 {title}", expanded=False):
+                        with st.expander(f"ðŸ“¤ {title}", expanded=False):
                             st.write(details.get("text", ""))
         st.markdown("</div>", unsafe_allow_html=True)
 
@@ -384,15 +438,15 @@ def render_evms_colored_table(items: List[Dict[str, Any]], totals: Dict[str, Any
     ]
     tooltips = {
         "BAC": "Budget At Completion: total planned cost",
-        "PV": "Planned Value (BCWS): BAC × planned % complete",
-        "EV": "Earned Value (BCWP): BAC × actual % complete",
+        "PV": "Planned Value (BCWS): BAC Ã— planned % complete",
+        "EV": "Earned Value (BCWP): BAC Ã— actual % complete",
         "AC": "Actual Cost (ACWP): actual cost to date",
-        "CPI": "Cost Performance Index = EV / AC (≥1.0 is on/under cost)",
-        "SPI": "Schedule Performance Index = EV / PV (≥1.0 is on/ahead of schedule)",
-        "CV": "Cost Variance = EV − AC (>0 favorable)",
-        "SV": "Schedule Variance = EV − PV (>0 favorable)",
-        "EAC": "Estimate At Completion ≈ BAC / CPI",
-        "ETC": "Estimate To Complete = EAC − AC",
+        "CPI": "Cost Performance Index = EV / AC (â‰¥1.0 is on/under cost)",
+        "SPI": "Schedule Performance Index = EV / PV (â‰¥1.0 is on/ahead of schedule)",
+        "CV": "Cost Variance = EV âˆ’ AC (>0 favorable)",
+        "SV": "Schedule Variance = EV âˆ’ PV (>0 favorable)",
+        "EAC": "Estimate At Completion â‰ˆ BAC / CPI",
+        "ETC": "Estimate To Complete = EAC âˆ’ AC",
         "Risk": "Derived from CPI/SPI and variances; thresholds configurable above",
         "OriginalEndDate": "Baseline planned end date",
         "ExpectedEndDate": "Current expected end date (if provided)",
@@ -428,20 +482,20 @@ def render_evms_colored_table(items: List[Dict[str, Any]], totals: Dict[str, Any
         if col == "SV":
             return "SV = EV - PV (>0 favorable)."
         if col == "EAC":
-            return "EAC ≈ BAC / CPI."
+            return "EAC â‰ˆ BAC / CPI."
         if col == "ETC":
             return "ETC = EAC - AC."
         if col == "PV":
-            return "PV = BAC × planned % complete."
+            return "PV = BAC Ã— planned % complete."
         if col == "EV":
-            return "EV = BAC × actual % complete."
+            return "EV = BAC Ã— actual % complete."
         if col == "AC":
             return "Actual Cost to date."
         # For other columns, fall back to header tooltip if present
         return tooltips.get(col, "")
     def fmt(v):
         if v is None:
-            return "—"
+            return "â€”"
         return f"{v}"
     rows = []
     for it in items:
@@ -481,7 +535,7 @@ def render_evms_colored_table(items: List[Dict[str, Any]], totals: Dict[str, Any
     tot = totals or {}
     html.append(
         "<div class='totals-banner' style='margin-top:10px;padding:10px;border-radius:10px;'>"
-        f"<b>Portfolio Totals</b> — AsOf: {fmt(tot.get('AsOf'))} | "
+        f"<b>Portfolio Totals</b> &mdash; As Of: {fmt(tot.get('AsOf'))} | "
         f"BAC: {fmt(tot.get('BAC'))}, PV: {fmt(tot.get('PV'))}, EV: {fmt(tot.get('EV'))}, AC: {fmt(tot.get('AC'))}, "
         f"CPI: {fmt(tot.get('CPI'))}, SPI: {fmt(tot.get('SPI'))}, CV: {fmt(tot.get('CV'))}, SV: {fmt(tot.get('SV'))}"
         "</div>"
@@ -536,12 +590,12 @@ def render_cpi_spi_heatmap(items: List[Dict[str, Any]]):
             continue
         bins[(cb, sb)].append(it)
 
-    label = {"low": "< 0.95", "mid": "0.95–<1.0", "high": "≥ 1.0"}
+    label = {"low": "< 0.95", "mid": "0.95â€“<1.0", "high": "â‰¥ 1.0"}
     color = {"low": "#b71c1c", "mid": "#ff8f00", "high": "#1b5e20"}
 
     html = [
         "<div style='margin-top:12px; overflow-x:auto; max-width:100%'>",
-        "<b>CPI × SPI Heatmap</b>",
+        "<b>CPI Ã— SPI Heatmap</b>",
         "<table style='margin-top:6px;border-collapse:collapse;width:100%'>",
         "<thead><tr><th></th>" + "".join(
             f"<th style='text-align:center;border-bottom:1px solid #444;padding:6px 8px'>SPI {label[c]}</th>" for c in ("low","mid","high")
@@ -907,7 +961,7 @@ qa_agent = Agent(
 async def get_ingestion_summary(csv_text: str) -> str:
     log_event(
         "handoff",
-        "Handing off to Ingestion Agent…",
+        "Handing off to Ingestion Agentâ€¦",
         {"reason": "Parse and validate CSV", "context": "project_template.csv", "from": "EVM Orchestrator", "to": "Ingestion Agent"},
     )
     result = await Runner.run(
@@ -927,7 +981,7 @@ async def get_ingestion_summary(csv_text: str) -> str:
 async def get_evms_report(csv_text: str, as_of_date: Optional[str] = None) -> str:
     log_event(
         "handoff",
-        "Handing off to EVM Calculator…",
+        "Handing off to EVM Calculatorâ€¦",
         {"reason": "Compute EVM metrics", "context": as_of_date or "today", "from": "EVM Orchestrator", "to": "EVM Calculator Agent"},
     )
     result = await Runner.run(
@@ -948,7 +1002,7 @@ async def get_evms_report(csv_text: str, as_of_date: Optional[str] = None) -> st
 async def get_risk_assessment(evms_result_json: str) -> str:
     log_event(
         "handoff",
-        "Handing off to Risk Analyst…",
+        "Handing off to Risk Analystâ€¦",
         {"reason": "Identify and rank risks", "context": "CPI, SPI, CV, SV", "from": "EVM Orchestrator", "to": "Risk Analyst Agent"},
     )
     result = await Runner.run(
@@ -975,7 +1029,7 @@ orchestrator_agent = Agent(
     1) Always parse/validate the CSV (string) first via `parse_and_validate_csv` or the ingestion tool.
     2) If valid, compute EVM metrics for the projects with `get_evms_report`.
     3) Then produce a risk assessment with `get_risk_assessment`.
-    4) Merge into one final answer: Overview, Portfolio Totals, Per‑Project Highlights, Risks & Actions.
+    4) Merge into one final answer: Overview, Portfolio Totals, Perâ€‘Project Highlights, Risks & Actions.
     Keep responses concise and practical for PMs.
     """,
     tools=[get_ingestion_summary, get_evms_report, get_risk_assessment],
@@ -1003,9 +1057,11 @@ async def run_agent(csv_text: str, as_of_date: Optional[str]) -> str:
 # Streamlit UI
 # =============================
 def main():
-    st.set_page_config(page_title="EVM Assistant", page_icon="📊", layout="centered")
+    st.set_page_config(page_title="EVM Assistant", page_icon="ðŸ“Š", layout="centered")
     inject_theme()
     st.title("EVM Assistant")
+    # Load shareable URL params (models, thresholds) before building widgets
+    _load_url_params_into_state()
 
     # Live model switchers (Gemini variants) and risk thresholds
     model_options = [
@@ -1038,6 +1094,8 @@ def main():
         globals()["RISK_SPI_THRESHOLD"] = float(spi_thr)
 
     st.caption(f"Model: {get_active_default_model()}  |  Summary Model: {get_active_summary_model()}  |  Provider: {PROVIDER}  |  Thresholds: CPI<{cpi_thr}, SPI<{spi_thr}")
+    # Update URL so users can share current model/threshold settings
+    _set_url_params_safe(md=_base_model_name(get_active_default_model()), ms=_base_model_name(get_active_summary_model()), cpi=str(cpi_thr), spi=str(spi_thr))
     _reset_litellm_logging_worker()
 
     # Initialize persistent UI flags
@@ -1149,7 +1207,7 @@ def main():
                 _render_trace_into_placeholder()
 
         with right:
-            with st.status("Analyzing portfolio…", expanded=True) as status:
+            with st.status("Analyzing portfolio...", expanded=True) as status:
                 try:
                     if mode.startswith("Fast"):
                         # Offer header mapping if needed (robust header detection)
@@ -1219,8 +1277,10 @@ def main():
                             )
                         )
                         agent_response = summary.final_output
+                        st.session_state["__last_agent_response__"] = agent_response
                     else:
                         agent_response = asyncio.run(run_agent(csv_text, as_of_str))
+                        st.session_state["__last_agent_response__"] = agent_response
                 finally:
                     st.session_state["__is_running__"] = False
                 status.update(label="Done", state="complete")
@@ -1242,11 +1302,20 @@ def main():
                 st.markdown("<div class='banner-gradient' style='margin-bottom:8px'><b>Run Summary</b></div>", unsafe_allow_html=True)
                 st.write(f"Agents involved: {len(used_agents)}")
                 for a in used_agents:
-                    tools_txt = ", ".join(a["tools"]) if a.get("tools") else "—"
-                    st.markdown(f"- <b>{a['name']}</b> · tools: {tools_txt}", unsafe_allow_html=True)
+                    tools_txt = ", ".join(a["tools"]) if a.get("tools") else "â€”"
+                    st.markdown(f"- <b>{a['name']}</b> Â· tools: {tools_txt}", unsafe_allow_html=True)
 
             st.markdown("### Final Report")
             st.write(agent_response)
+            rep_col1, rep_col2 = st.columns([2,6])
+            with rep_col1:
+                st.download_button(
+                    "Download report (Markdown)",
+                    data=(st.session_state.get("__last_agent_response__") or agent_response or "").strip() or "Report unavailable.",
+                    file_name="evm_report.md",
+                    mime="text/markdown",
+                    key="__dl_report_md_top__",
+                )
 
             # Local colored table for quick visual scan
             try:
@@ -1268,11 +1337,14 @@ def main():
 
                 col1, col2, col3 = st.columns(3)
                 with col1:
-                    sel_pms = st.multiselect("PM", options=pms, default=pms)
+                    default_pms = st.session_state.get("__flt_pms__", pms)
+                    sel_pms = st.multiselect("PM", options=pms, default=default_pms)
                 with col2:
-                    sel_depts = st.multiselect("Dept", options=depts, default=depts)
+                    default_depts = st.session_state.get("__flt_depts__", depts)
+                    sel_depts = st.multiselect("Dept", options=depts, default=default_depts)
                 with col3:
-                    sel_status = st.multiselect("Status", options=statuses, default=statuses)
+                    default_status = st.session_state.get("__flt_status__", statuses)
+                    sel_status = st.multiselect("Status", options=statuses, default=default_status)
 
                 def apply_filters(rows: List[Dict[str, Any]]):
                     flt = []
@@ -1302,6 +1374,45 @@ def main():
                     "SV": round(sumf_local("EV") - sumf_local("PV"), 2),
                     "AsOf": totals.get("AsOf"),
                 }
+                # Quick exports placed just under the caption for visibility
+                exp_a, exp_b = st.columns(2)
+                with exp_a:
+                    st.download_button(
+                        "Download report (Markdown)",
+                        data=(st.session_state.get("__last_agent_response__") or ""),
+                        file_name="evm_report.md",
+                        mime="text/markdown",
+                        key="__dl_report_md_caption__",
+                        use_container_width=True,
+                    )
+                with exp_b:
+                    import io as _io2, csv as _csv2
+                    cols2 = [
+                        "ProjectID","ProjectName","PM","Dept","Status","StartDate",
+                        "OriginalEndDate","ExpectedEndDate","BAC","PV","EV","AC",
+                        "CPI","SPI","CV","SV","EAC","ETC","Risk",
+                    ]
+                    def _to_rows2(rows):
+                        out=[]
+                        for it in rows:
+                            rk,_ = _risk_level_and_reasons(it)
+                            row={c: it.get(c) for c in cols2}
+                            row["Risk"]=rk
+                            out.append(row)
+                        return out
+                    buf2=_io2.StringIO()
+                    w2=_csv2.DictWriter(buf2, fieldnames=cols2)
+                    w2.writeheader()
+                    for r in _to_rows2(filtered_items):
+                        w2.writerow({k: ("" if v is None else v) for k,v in r.items()})
+                    st.download_button(
+                        "Download filtered table (CSV)",
+                        data=buf2.getvalue(),
+                        file_name="evm_filtered.csv",
+                        mime="text/csv",
+                        key="__dl_filtered_csv_caption__",
+                        use_container_width=True,
+                    )
 
                 # Pagination / load more controls
                 page_size_default = 50
@@ -1322,6 +1433,55 @@ def main():
                 st.markdown("### Computed Metrics")
                 items_page = filtered_items[:rows_to_show]
                 render_evms_colored_table(items_page, filtered_totals)
+                # Update URL with filter state for shareable links
+                _set_url_params_safe(
+                    md=_base_model_name(get_active_default_model()),
+                    ms=_base_model_name(get_active_summary_model()),
+                    cpi=str(RISK_CPI_THRESHOLD),
+                    spi=str(RISK_SPI_THRESHOLD),
+                    pm=",".join(sel_pms),
+                    dept=",".join(sel_depts),
+                    status=",".join(sel_status),
+                )
+
+                # Exports: report markdown and filtered data CSV
+                st.markdown("### Export")
+                export_col1, export_col2 = st.columns(2)
+                with export_col1:
+                    report_md = (st.session_state.get("__last_agent_response__") or "").strip()
+                    st.download_button(
+                        "Download report (Markdown)",
+                        data=report_md if report_md else "Report unavailable.",
+                        file_name="evm_report.md",
+                        mime="text/markdown",
+                    )
+                with export_col2:
+                    # Convert filtered rows to CSV with the same columns as the table
+                    cols = [
+                        "ProjectID", "ProjectName", "PM", "Dept", "Status", "StartDate",
+                        "OriginalEndDate", "ExpectedEndDate",
+                        "BAC", "PV", "EV", "AC", "CPI", "SPI", "CV", "SV", "EAC", "ETC", "Risk",
+                    ]
+                    def to_rows(rows: List[Dict[str, Any]]):
+                        out = []
+                        for it in rows:
+                            risk_level, _ = _risk_level_and_reasons(it)
+                            row = {c: it.get(c) for c in cols}
+                            row["Risk"] = risk_level
+                            out.append(row)
+                        return out
+                    import io as _io, csv as _csv
+                    buf = _io.StringIO()
+                    w = _csv.DictWriter(buf, fieldnames=cols)
+                    w.writeheader()
+                    for r in to_rows(filtered_items):
+                        w.writerow({k: ("" if v is None else v) for k, v in r.items()})
+                    st.download_button(
+                        "Download filtered table (CSV)",
+                        data=buf.getvalue(),
+                        file_name="evm_filtered.csv",
+                        mime="text/csv",
+                    )
                 with st.expander("What's this?", expanded=False):
                     st.markdown(
                         "- CPI: Cost Performance Index = EV / AC. < 1.0 means over cost.\n"
@@ -1334,16 +1494,16 @@ def main():
                 with st.expander("Formulas used", expanded=False):
                     st.markdown("""
                     - BAC: PlannedCost
-                    - Planned %: days elapsed from StartDate to the As‑of date, divided by total planned days (StartDate → End); capped between 0% and 100%. End = ExpectedEndDate if provided, otherwise OriginalEndDate
-                    - PV: BAC × Planned %
-                    - EV: BAC × ProgressPercent_Manual/100
+                    - Planned %: days elapsed from StartDate to the Asâ€‘of date, divided by total planned days (StartDate â†’ End); capped between 0% and 100%. End = ExpectedEndDate if provided, otherwise OriginalEndDate
+                    - PV: BAC Ã— Planned %
+                    - EV: BAC Ã— ProgressPercent_Manual/100
                     - AC: ActualCost
-                    - CV: EV − AC
-                    - SV: EV − PV
+                    - CV: EV âˆ’ AC
+                    - SV: EV âˆ’ PV
                     - CPI: EV / AC (if AC > 0)
                     - SPI: EV / PV (if PV > 0)
                     - EAC: BAC / CPI (if CPI > 0)
-                    - ETC: EAC − AC
+                    - ETC: EAC âˆ’ AC
                     """)
 
                 st.markdown("### Ask Rowshni a project related question")
@@ -1352,7 +1512,7 @@ def main():
                         "Question about these projects (answers use only this data)",
                         placeholder="e.g., How many projects are over budget?",
                     )
-                    st.caption("Examples: Which projects have SPI < 0.9? • Total AC by Dept • List projects with CV < 0")
+                    st.caption("Examples: Which projects have SPI < 0.9? â€¢ Total AC by Dept â€¢ List projects with CV < 0")
                     ask = st.form_submit_button("Ask")
                 if ask and question.strip():
                     qa_prompt = (
@@ -1441,8 +1601,8 @@ def main():
                 st.markdown("<div class='banner-gradient' style='margin-bottom:8px'><b>Run Summary</b></div>", unsafe_allow_html=True)
                 st.write(f"Agents involved: {len(used_agents)}")
                 for a in used_agents:
-                    tools_txt = ", ".join(a["tools"]) if a.get("tools") else "—"
-                    st.markdown(f"- <b>{a['name']}</b> · tools: {tools_txt}", unsafe_allow_html=True)
+                    tools_txt = ", ".join(a["tools"]) if a.get("tools") else "â€”"
+                    st.markdown(f"- <b>{a['name']}</b> Â· tools: {tools_txt}", unsafe_allow_html=True)
 
             st.markdown("### Final Report")
             st.write(agent_response)
@@ -1517,16 +1677,16 @@ def main():
                 with st.expander("Formulas used", expanded=False):
                     st.markdown("""
                     - BAC: PlannedCost
-                    - Planned %: days elapsed from StartDate to the As‑of date, divided by total planned days (StartDate → End); capped between 0% and 100%. End = ExpectedEndDate if provided, otherwise OriginalEndDate
-                    - PV: BAC × Planned %
-                    - EV: BAC × ProgressPercent_Manual/100
+                    - Planned %: days elapsed from StartDate to the Asâ€‘of date, divided by total planned days (StartDate â†’ End); capped between 0% and 100%. End = ExpectedEndDate if provided, otherwise OriginalEndDate
+                    - PV: BAC Ã— Planned %
+                    - EV: BAC Ã— ProgressPercent_Manual/100
                     - AC: ActualCost
-                    - CV: EV − AC
-                    - SV: EV − PV
+                    - CV: EV âˆ’ AC
+                    - SV: EV âˆ’ PV
                     - CPI: EV / AC (if AC > 0)
                     - SPI: EV / PV (if PV > 0)
                     - EAC: BAC / CPI (if CPI > 0)
-                    - ETC: EAC − AC
+                    - ETC: EAC âˆ’ AC
                     """)
 
                 st.markdown("### Ask Rowshni a project related question")
@@ -1535,7 +1695,7 @@ def main():
                         "Question about these projects (answers use only this data)",
                         placeholder="e.g., How many projects are over budget?",
                     )
-                    st.caption("Examples: Which projects have SPI < 0.9? • Total AC by Dept • List projects with CV < 0")
+                    st.caption("Examples: Which projects have SPI < 0.9? â€¢ Total AC by Dept â€¢ List projects with CV < 0")
                     ask = st.form_submit_button("Ask")
                 if ask and question.strip():
                     qa_prompt = (
@@ -1566,3 +1726,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+
+

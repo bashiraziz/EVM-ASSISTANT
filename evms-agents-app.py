@@ -555,22 +555,35 @@ def main():
 
             # Suggest questions helper (appears above the Q&A section)
             def _suggest_questions(items_list, totals_dict):
-                pool = [
+                # Build suggestions that are answerable strictly from Items/Totals.
+                # Avoid past/future comparisons or prescriptive guidance.
+                available_keys = set()
+                try:
+                    if items_list:
+                        available_keys = set(items_list[0].keys())
+                except Exception:
+                    available_keys = set()
+
+                base_pool = [
                     "Which projects are behind schedule (SPI < 1.0)?",
                     "Which projects are over budget (CPI < 1.0)?",
                     "List top 3 projects by cost variance (CV).",
                     "Which projects have both CPI and SPI below thresholds?",
                     "What is the total BAC, PV, EV, and AC across the portfolio?",
-                    "Which projects improved SPI compared to last period?",
-                    "Which projects should be watched next month based on risk level?",
-                    "What corrective actions are suggested for high‑risk projects?",
-                    "How many projects are on track (CPI ≥ 1 and SPI ≥ 1)?",
-                    "Which department has the most at‑risk projects?",
+                    "How many projects are on track (CPI >= 1 and SPI >= 1)?",
+                    "Which projects have the worst schedule variance (SV)?",
+                    "Which projects have the worst cost variance (CV)?",
                 ]
+
+                # Conditionally include department-related prompt only if such a column exists
+                if any(k.lower() in {"department", "dept", "org", "organization"} for k in available_keys):
+                    base_pool.append("Which department has the most at-risk projects?")
+
+                # Sample up to 5 suggestions
                 try:
-                    return random.sample(pool, k=5)
+                    return random.sample(base_pool, k=min(5, len(base_pool)))
                 except ValueError:
-                    return pool[:5]
+                    return base_pool[:5]
 
             if st.button(
                 "💡 Suggest 5 EVM Questions",

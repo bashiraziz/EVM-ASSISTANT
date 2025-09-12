@@ -25,6 +25,14 @@ class Runner:
             # Fallback dummy
             return _RunResult("")
         model = run_config.model if run_config else "gpt-4o-mini"
+        # Normalize model identifiers like "litellm/gemini/gemini-1.5-pro"
+        # LiteLLM expects provider/model (e.g., "gemini/gemini-1.5-pro").
+        try:
+            low = model.lower()
+            if low.startswith("litellm/"):
+                model = model.split("/", 1)[1]
+        except Exception:
+            pass
         system = getattr(agent, "instructions", "You are a helpful assistant.")
         try:
             resp = completion(model=model, messages=[

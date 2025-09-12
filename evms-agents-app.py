@@ -414,8 +414,9 @@ def main():
                         sb_p2 = st.empty()
                         sb_p3 = st.empty()
                         sb_p1.write("○ Ingestion Agent — Parse & validate CSV")
-                        sb_p2.write("• Pending: EVM Calculator — Compute portfolio metrics")
-                        sb_p3.write("• Pending: Risk Analyst — Assess risks")
+                        # Ensure consistent naming: always include the word 'Agent'
+                        sb_p2.write("• Pending: EVM Calculator Agent — Compute portfolio metrics")
+                        sb_p3.write("• Pending: Risk Analyst Agent — Assess risks")
                 except Exception:
                     sb_p1 = sb_p2 = sb_p3 = None
                 from evm_app.agents.ingestion_agent import ingestion_agent

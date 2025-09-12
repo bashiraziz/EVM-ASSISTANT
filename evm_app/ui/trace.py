@@ -69,9 +69,15 @@ def _render_trace_into_placeholder():
     if not ph:
         return
     with ph:
-        st.markdown("<div style='position:sticky; top:0; background:transparent; padding-bottom:6px'><h3>Run Trace</h3></div>", unsafe_allow_html=True)
+        st.markdown(
+            "<div style='position:sticky; top:0; background:transparent; padding-bottom:6px'><h3>Run Trace</h3></div>",
+            unsafe_allow_html=True,
+        )
 
-        st.markdown("<div style='max-height:70vh; overflow-y:auto; padding-right:6px'>", unsafe_allow_html=True)
+        st.markdown(
+            "<div style='max-height:70vh; overflow-y:auto; padding-right:6px; font-size:0.9rem; line-height:1.2;'>",
+            unsafe_allow_html=True,
+        )
         events = st.session_state.get(TRACE_KEY, [])
         compact = True
 
@@ -86,39 +92,32 @@ def _render_trace_into_placeholder():
                     continue
                 filtered.append(ev)
                 last_sig = sig
-            events_to_render = filtered[-20:]
+            events_to_render = filtered[-15:]
         else:
-            events_to_render = events[-20:]
+            events_to_render = events[-15:]
 
         if not events_to_render:
             st.info("No trace available.")
         else:
+            # Render a compact bullet list for readability
+            lines = []
             for ev in events_to_render:
                 kind = ev["kind"]
-                title = ev["title"]
-                details = ev["details"]
-
+                title = ev.get("title", "")
+                details = ev.get("details", {}) or {}
                 if kind == "handoff":
-                    if compact:
-                        frm = details.get('from','-'); to = details.get('to','-'); reason = details.get('reason','-')
-                        st.write(f"Handoff: {frm} -> {to} - {reason}")
-                    else:
-                        st.markdown(
-                            f"""
-<div class=\"trace-card\" style=\"padding:12px;border-radius:10px;\">\n  <div style=\"font-weight:700;color:#fff;\">{title}</div>\n  <div style=\"color:#cfe3ff;margin-top:6px;\">Reason: {details.get('reason','-')}</div>\n  <div style=\"color:#cfe3ff;\">Context: {details.get('context', details.get('location','-'))}</div>\n  <div style=\"color:#9ad0ff;\">From: {details.get('from','-')} | To: {details.get('to','-')}</div>\n</div>
-                            """,
-                            unsafe_allow_html=True,
-                        )
+                    frm = details.get('from','-'); to = details.get('to','-'); reason = details.get('reason','-')
+                    lines.append(f"- Handoff: {frm} → {to} — {reason}")
                 elif kind == "tool_call":
                     by = details.get("by", "-") if isinstance(details, dict) else "-"
-                    st.write(f"Tool: {title} - by {by}")
+                    lines.append(f"- Tool: {title} (by {by})")
                 elif kind == "tool_done":
                     by = details.get("by", "-") if isinstance(details, dict) else "-"
-                    st.write(f"Done: {title} - by {by}")
+                    lines.append(f"- Done: {title} (by {by})")
                 elif kind == "agent_result":
-                    if not compact:
-                        with st.expander(f"{title}", expanded=False):
-                            st.write(details.get("text", ""))
+                    continue
+
+            st.markdown("\n".join(lines))
         st.markdown("</div>", unsafe_allow_html=True)
 
 
@@ -129,4 +128,3 @@ __all__ = [
     "clear_trace",
     "render_trace",
 ]
-

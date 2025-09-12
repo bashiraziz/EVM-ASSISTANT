@@ -1,0 +1,20 @@
+{
+  "created_at": "2025-09-11T16:54:26",
+  "as_of": "2025-09-11",
+  "model_default": "litellm/gemini/gemini-1.5-pro",
+  "model_summary": "litellm/gemini/gemini-1.5-flash",
+  "items_count": 3,
+  "totals": {
+    "BAC": 450000.0,
+    "PV": 363264.49,
+    "EV": 202500.0,
+    "AC": 265000.0,
+    "CPI": 0.764,
+    "SPI": 0.557,
+    "CV": -62500.0,
+    "SV": -160764.49,
+    "AsOf": "2025-09-11"
+  },
+  "report": "## Project Portfolio Overview - 2025-09-11\n\n**Overall Status:** The portfolio is behind schedule and over budget. Immediate action is required, especially for the Data Migration project.\n\n**Portfolio Totals:**\n\n* Total Planned Cost: $450,000\n* Total Actual Cost: $265,000\n* Total Earned Value: $242,500\n* Portfolio CPI: 0.76\n* Portfolio SPI: 0.56\n\n**Per-Project Highlights:**\n\n* **P1001 (New Website): Low Risk.** Slightly over budget and behind schedule. Requires monitoring.\n* **P1002 (Mobile App): Medium Risk.** Moderately over budget and behind schedule. Needs performance review and potential schedule adjustments.\n* **P1003 (Data Migration): High Risk.** Significantly over budget and behind schedule. Requires immediate deep-dive analysis and corrective action.\n\n**Risks & Actions:**\n\n* **P1003 (Data Migration):** Analyze root causes of cost and schedule variances, implement corrective actions, and closely monitor performance.\n* **P1002 (Mobile App):** Review performance, optimize resource utilization, adjust the schedule if necessary, and mitigate potential risks.\n* **P1001 (New Website):** Monitor performance, track CPI/SPI trends, and address any deviations promptly.\n",
+  "qas": []
+}

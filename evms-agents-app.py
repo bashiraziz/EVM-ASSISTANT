@@ -38,12 +38,8 @@ from evm_app.tools.evm_tools import compute_portfolio_for_ui, risk_level_and_rea
 from evm_app.ui.diagnostics import render_diagnostics_panel
 from evm_app.ui.tables import render_cpi_spi_heatmap, render_evms_colored_table
 from evm_app.ui.theme import inject_theme
-from evm_app.ui.trace import (
-    TRACE_KEY,
-    TRACE_PH_KEY,
-    _render_trace_into_placeholder as render_trace_placeholder,
-    clear_trace,
-)
+from evm_app.ui.progress import render_sidebar as render_progress_sidebar, reset_progress, add_step, update_step
+# Trace UI removed per request; core logging remains internal
 
 # Disable/neutralize LiteLLM's background LoggingWorker to avoid event-loop issues/warnings in Streamlit
 try:
@@ -94,6 +90,9 @@ def get_sample_csv_text() -> str:
     except Exception:
         pass
     return default_sample
+
+
+# History persistence removed per request
 
 
 def _maybe_map_headers_ui(csv_text: str) -> str:
@@ -147,10 +146,68 @@ def _maybe_map_headers_ui(csv_text: str) -> str:
 def main():
     st.set_page_config(page_title="EVM Assistant", page_icon="EV", layout="centered")
     inject_theme()
+    # Anchors for in-page links
+    st.markdown("<a name='top'></a>", unsafe_allow_html=True)
     st.title("EVM Assistant")
+    # Subtle pill-style link buttons
+    st.markdown(
+        """
+        <style>
+        .link-btn {display:inline-block; padding:6px 12px; border:1px solid rgba(255,255,255,0.25);
+                   border-radius:999px; text-decoration:none; color:inherit; font-size:0.9rem;}
+        .link-btn:hover {background:rgba(255,255,255,0.06); text-decoration:none;}
+        .link-row {display:flex; gap:10px; align-items:center;}
+        .link-right {text-align:right; padding-top:6px;}
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
 
     # Load shareable URL params (models, thresholds)
     load_url_params_into_state()
+    # Handle reset via URL param (?reset=1) so we can style it like a link
+    try:
+        qp = dict(st.query_params)
+    except Exception:
+        qp = st.experimental_get_query_params() or {}
+    if (qp.get("reset") or [None])[0] in ("1", 1, True, "true"):
+        for k in ("evms_items", "evms_totals", "evms_report", "evms_as_of"):
+            st.session_state.pop(k, None)
+        # Reapply URL params without 'reset'
+        try:
+            # Preserve current md/ms/cpi/spi
+            md = st.session_state.get("__model_default__")
+            ms = st.session_state.get("__model_summary__")
+            cpi = qp.get("cpi") if isinstance(qp.get("cpi"), str) else None
+            spi = qp.get("spi") if isinstance(qp.get("spi"), str) else None
+            clean = {}
+            if md:
+                clean["md"] = md
+            if ms:
+                clean["ms"] = ms
+            if cpi:
+                clean["cpi"] = cpi
+            if spi:
+                clean["spi"] = spi
+            if clean:
+                try:
+                    for k, v in clean.items():
+                        st.query_params[k] = v
+                    # Remove reset key if available
+                    try:
+                        del st.query_params["reset"]
+                    except Exception:
+                        pass
+                except Exception:
+                    st.experimental_set_query_params(**clean)
+            else:
+                # Clear all query params if nothing to preserve
+                try:
+                    st.query_params.clear()
+                except Exception:
+                    st.experimental_set_query_params()
+        except Exception:
+            pass
 
     # Model pickers and thresholds
     model_options = ["gemini-1.5-pro", "gemini-1.5-flash"]
@@ -203,6 +260,12 @@ def main():
 
     # Diagnostics
     render_diagnostics_panel()
+    # Always render progress (if any) in the sidebar
+    render_progress_sidebar()
+
+    # Sidebar Q&A will be rendered once at the end after results are available
+
+    # History UI removed
 
     st.caption(
         "Upload a CSV matching the template headers to compute EVM metrics and summarize portfolio health."
@@ -232,8 +295,26 @@ def main():
             height=180,
         )
 
-    # Submit
-    if st.button("Run EVM Analysis"):
+    # Helpers: reset state + quick links
+    col_links1, col_reset = st.columns([3, 1])
+    with col_links1:
+        st.markdown("<div class='link-row'><a class='link-btn' href='#results'>Scroll to results</a></div>", unsafe_allow_html=True)
+    with col_reset:
+        # Reset as a pill-style link that triggers a rerun with ?reset=1
+        st.markdown("<div class='link-right'><a class='link-btn' href='?reset=1#top'>Reset</a></div>", unsafe_allow_html=True)
+
+    # A dedicated results area that renders BELOW inputs and the button
+    st.markdown("<a name='results'></a>", unsafe_allow_html=True)
+    results_area = st.container()
+
+    # Submit + Back to top link side-by-side
+    btn_col, top_col = st.columns([1, 1])
+    with btn_col:
+        run_clicked = st.button("Run EVM Analysis")
+    with top_col:
+        st.markdown("<div class='link-right'><a class='link-btn' href='#top'>Back to top</a></div>", unsafe_allow_html=True)
+
+    if run_clicked:
         csv_text = (file.read().decode("utf-8") if file else pasted_csv_text) or ""
         if not csv_text:
             st.error("Please provide CSV input.")
@@ -241,20 +322,24 @@ def main():
 
         # Optional mapping if headers differ
         csv_text = _maybe_map_headers_ui(csv_text)
+        # Proceed to main rendering
 
-        clear_trace()
-        show_trace = st.checkbox("Show trace", value=False)
-        left, right = (st.columns([1, 6], gap="large") if show_trace else (None, st.container()))
-        if left is not None:
-            with left:
-                st.session_state[TRACE_PH_KEY] = st.container()
-                render_trace_placeholder()
-
-        with right:
+        with results_area:
+            # Live progress panel to keep users engaged
+            try:
+                status = st.status("Working", expanded=True)
+                status.write("Parsing CSV and validating headers…")
+            except Exception:
+                status = None
             as_of_str = as_of_date.isoformat() if as_of_date else None
 
             if mode.startswith("Fast"):
+                if status:
+                    status.update(label="Computing EVM metrics…", state="running")
+                reset_progress()
+                p1 = add_step("Compute metrics locally", "running")
                 items, totals, row_errors = compute_portfolio_for_ui(csv_text, as_of_str)
+                update_step(p1, "done")
                 if row_errors:
                     st.warning("Some rows had issues. Showing first 5:")
                     for e in row_errors[:5]:
@@ -279,55 +364,230 @@ def main():
                     f"Risks: {json.dumps(risks[:8])}\n"
                     "Return 4-6 concise bullets with actionable guidance."
                 )
+                if status:
+                    status.update(label="Generating summary…", state="running")
                 summary = asyncio.run(
                     Runner.run(
-                        summary_agent, prompt, run_config=RunConfig(model=get_active_summary_model())
+                        summary_agent,
+                        prompt,
+                        run_config=RunConfig(model=get_active_summary_model(), tracing_disabled=True),
                     )
                 )
                 agent_response = (summary.final_output or "").strip()
+                # Persist computed results for later (visuals + Q&A)
+                st.session_state["evms_items"] = items
+                st.session_state["evms_totals"] = totals
+                st.session_state["evms_report"] = agent_response
+                st.session_state["evms_as_of"] = as_of_str
             else:
-                agent_response = asyncio.run(run_agent(csv_text, as_of_str))
+                if status:
+                    status.update(label="Running multi-agent workflow…", state="running")
+                # Sidebar progress with friendly agent names
+                reset_progress()
+                s1 = add_step("Ingestion Agent — Parse & validate CSV", "running")
+                # Inline live sidebar placeholders for immediate feedback
+                try:
+                    with st.sidebar:
+                        st.markdown("### Working")
+                        sb_p1 = st.empty()
+                        sb_p2 = st.empty()
+                        sb_p3 = st.empty()
+                        sb_p1.write("○ Ingestion Agent — Parse & validate CSV")
+                        sb_p2.write("• Pending: EVM Calculator — Compute portfolio metrics")
+                        sb_p3.write("• Pending: Risk Analyst — Assess risks")
+                except Exception:
+                    sb_p1 = sb_p2 = sb_p3 = None
+                from evm_app.agents.ingestion_agent import ingestion_agent
+                ing_res = asyncio.run(
+                    Runner.run(
+                        ingestion_agent,
+                        input=(
+                            "Parse and validate this CSV content against the expected headers. "
+                            "If valid, briefly summarize row count and note any extra headers. "
+                            "If invalid, list missing headers.\n\nCSV:\n" + csv_text
+                        ),
+                        run_config=RunConfig(model=get_active_default_model(), tracing_disabled=True),
+                    )
+                )
+                ing = (ing_res.final_output or "").strip()
+                update_step(s1, "done")
+                if sb_p1:
+                    sb_p1.write("● Ingestion Agent — Done")
 
+                s2 = add_step("EVM Calculator — Compute portfolio metrics", "running")
+                from evm_app.agents.evms_calculator_agent import evms_calculator_agent
+                if sb_p2:
+                    sb_p2.write("○ EVM Calculator — Compute portfolio metrics")
+                evm_res = asyncio.run(
+                    Runner.run(
+                        evms_calculator_agent,
+                        input=(
+                            "Compute EVM metrics for this CSV. "
+                            "Return a concise per-project summary and portfolio totals.\n\n"
+                            f"AsOf: {as_of_str or date.today().isoformat()}\n"
+                            f"CSV:\n{csv_text}"
+                        ),
+                        run_config=RunConfig(model=get_active_default_model(), tracing_disabled=True),
+                    )
+                )
+                evm = (evm_res.final_output or "").strip()
+                update_step(s2, "done")
+                if sb_p2:
+                    sb_p2.write("● EVM Calculator — Done")
+
+                s3 = add_step("Risk Analyst — Assess risks", "running")
+                from evm_app.agents.risk_analyst_agent import risk_analyst_agent
+                if sb_p3:
+                    sb_p3.write("○ Risk Analyst — Assess risks")
+                risk_res = asyncio.run(
+                    Runner.run(
+                        risk_analyst_agent,
+                        input=(
+                            "Assess risk levels per project based on CPI, SPI, CV, and SV, and propose corrective actions.\n\n"
+                            f"EVM JSON: {evm}"
+                        ),
+                        run_config=RunConfig(model=get_active_default_model(), tracing_disabled=True),
+                    )
+                )
+                risk = (risk_res.final_output or "").strip()
+                update_step(s3, "done")
+                if sb_p3:
+                    sb_p3.write("● Risk Analyst — Done")
+
+                agent_response = f"{ing}\n\n{evm}\n\n{risk}"
+
+                # Also compute and persist items/totals for visuals & Q&A
+                if status:
+                    status.update(label="Computing visuals…", state="running")
+                items, totals, _ = compute_portfolio_for_ui(csv_text, as_of_str)
+                st.session_state["evms_items"] = items
+                st.session_state["evms_totals"] = totals
+                st.session_state["evms_report"] = agent_response
+                st.session_state["evms_as_of"] = as_of_str
+                # History persistence removed
+
+            if status:
+                status.update(label="Done", state="complete")
+            st.success("Analysis complete. See results below.")
+
+    # Render results outside submit branch so they persist across reruns
+    with results_area:
+        report_ss = st.session_state.get("evms_report")
+        items = st.session_state.get("evms_items") or []
+        totals = st.session_state.get("evms_totals") or {}
+        if report_ss:
             st.markdown("### Final Report")
-            st.write(agent_response or "(no response)")
+            st.write(report_ss or "(no response)")
             st.download_button(
                 "Download report (Markdown)",
-                data=(agent_response or "Report unavailable.").strip(),
+                data=(report_ss or "Report unavailable.").strip(),
                 file_name="evm_report.md",
                 mime="text/markdown",
             )
 
-            # Visuals
             st.markdown("### Portfolio Heatmap")
-            items, totals, _ = compute_portfolio_for_ui(csv_text, as_of_str)
             render_cpi_spi_heatmap(items)
 
             st.markdown("### Computed Metrics")
             render_evms_colored_table(items[:200], totals)
 
-            # Simple Q&A (data-only)
+    # Simple Q&A (data-only) — stays outside submit and follows results
+    with results_area:
+        items_ss = st.session_state.get("evms_items")
+        totals_ss = st.session_state.get("evms_totals")
+        if items_ss is not None and totals_ss is not None:
             st.markdown("### Ask a question about these projects")
-            q = st.text_input(
-                "Question (answers use only this data)",
-                placeholder="e.g., How many projects are over budget?",
-            )
-            if st.button("Ask") and q.strip():
+
+            # Clear pending field if requested (must happen BEFORE rendering the widget)
+            if st.session_state.get("__qa_clear"):
+                st.session_state["qa_question"] = ""
+                del st.session_state["__qa_clear"]
+
+            with st.form("qa_form"):
+                q = st.text_input(
+                    "Question (answers use only this data)",
+                    placeholder="e.g., How many projects are over budget?",
+                    key="qa_question",
+                )
+                submitted = st.form_submit_button("Ask")
+            if submitted and q.strip():
                 qa_prompt = (
                     "Answer strictly using this data. If unknown, say so.\n\n"
-                    f"Totals: {json.dumps(totals)}\n"
-                    f"Items: {json.dumps(items)}\n"
+                    f"Totals: {json.dumps(totals_ss)}\n"
+                    f"Items: {json.dumps(items_ss)}\n"
                     f"Question: {q.strip()}"
                 )
                 ans = asyncio.run(
                     Runner.run(
-                        qa_agent, qa_prompt, run_config=RunConfig(model=get_active_default_model())
+                        qa_agent,
+                        qa_prompt,
+                        run_config=RunConfig(model=get_active_default_model(), tracing_disabled=True),
                     )
                 )
                 resp = (ans.final_output or "").strip()
-                if "OUT_OF_SCOPE" in resp:
+                # Save last Q&A, request clear, and rerun to safely reset the input
+                st.session_state["__qa_last_q"] = q.strip()
+                st.session_state["__qa_last_a"] = resp
+                st.session_state["__qa_clear"] = True
+                try:
+                    st.rerun()
+                except Exception:
+                    st.experimental_rerun()
+
+            # Render last asked question and answer after rerun
+            last_q = st.session_state.get("__qa_last_q")
+            last_a = st.session_state.get("__qa_last_a")
+            if last_q:
+                st.markdown(f"#### Q: {last_q}")
+                if last_a and "OUT_OF_SCOPE" in last_a:
                     st.info("The assistant can only answer questions about the uploaded data.")
-                else:
-                    st.write(resp)
+                elif last_a:
+                    st.write(last_a)
+        else:
+            st.caption("Run EVM Analysis to enable Q&A.")
+
+    # Sidebar Q&A rendered at end so it activates immediately after results are computed
+    with st.sidebar:
+        st.markdown("### Q&A")
+        sb_items = st.session_state.get("evms_items")
+        sb_totals = st.session_state.get("evms_totals")
+        if sb_items is None or sb_totals is None:
+            st.caption("Run EVM Analysis to enable Q&A.")
+        else:
+            if st.session_state.get("__qa_clear_sb"):
+                st.session_state["qa_question_sb"] = ""
+                del st.session_state["__qa_clear_sb"]
+            with st.form("qa_form_sidebar"):
+                q_sb = st.text_input(
+                    "Ask a question",
+                    placeholder="Type your question…",
+                    key="qa_question_sb",
+                    label_visibility="collapsed",
+                )
+                sb_submit = st.form_submit_button("Ask")
+                st.caption("Press Enter or click Ask")
+            if sb_submit and q_sb.strip():
+                qa_prompt_sb = (
+                    "Answer strictly using this data. If unknown, say so.\n\n"
+                    f"Totals: {json.dumps(sb_totals)}\n"
+                    f"Items: {json.dumps(sb_items)}\n"
+                    f"Question: {q_sb.strip()}"
+                )
+                ans_sb = asyncio.run(
+                    Runner.run(
+                        qa_agent,
+                        qa_prompt_sb,
+                        run_config=RunConfig(model=get_active_default_model(), tracing_disabled=True),
+                    )
+                )
+                resp_sb = (ans_sb.final_output or "").strip()
+                st.session_state["__qa_last_q"] = q_sb.strip()
+                st.session_state["__qa_last_a"] = resp_sb
+                st.session_state["__qa_clear_sb"] = True
+                try:
+                    st.rerun()
+                except Exception:
+                    st.experimental_rerun()
 
 
 if __name__ == "__main__":

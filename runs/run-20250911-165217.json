@@ -1,0 +1,20 @@
+{
+  "created_at": "2025-09-11T16:52:17",
+  "as_of": "2025-09-11",
+  "model_default": "litellm/gemini/gemini-1.5-pro",
+  "model_summary": "litellm/gemini/gemini-1.5-flash",
+  "items_count": 3,
+  "totals": {
+    "BAC": 450000.0,
+    "PV": 363264.49,
+    "EV": 202500.0,
+    "AC": 265000.0,
+    "CPI": 0.764,
+    "SPI": 0.557,
+    "CV": -62500.0,
+    "SV": -160764.49,
+    "AsOf": "2025-09-11"
+  },
+  "report": "## Project Portfolio Overview (as of 2025-09-11)\n\nThe portfolio is currently underperforming, with all three projects behind schedule and over budget. The Data Migration project (P1003) poses the most significant risk, with the lowest CPI and SPI. Immediate corrective actions are required across the portfolio.\n\n**Portfolio Totals:**\n\n* **CPI:** 0.76\n* **SPI:** 0.56\n* **CV:** -62500\n* **SV:** -160764\n\n**Per-Project Highlights:**\n\n| Project ID | Project Name | CPI  | SPI  | EAC    | Risk Level |\n| :--------- | :----------- | :---- | :---- | :------ | :--------- |\n| P1001      | New Website  | 0.89  | 0.58  | 112500 | Medium     |\n| P1002      | Mobile App   | 0.85  | 0.75  | 236364 | Medium     |\n| P1003      | Data Migr.  | 0.58  | 0.36  | 257143 | High      |\n\n\n**Risks & Actions:**\n\n* **P1003 (Data Migration):** High risk due to significant schedule and cost overruns. Investigate root causes, reassess scope and requirements, and implement corrective actions immediately.  Consider adding resources or adjusting timelines.\n* **P1001 (New Website) & P1002 (Mobile App):** Medium risk. Review project plans, identify potential roadblocks, and implement corrective actions to bring projects back on track. Closely monitor progress and budget.\n\n\n",
+  "qas": []
+}

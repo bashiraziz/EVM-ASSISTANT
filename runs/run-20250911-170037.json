@@ -1,0 +1,20 @@
+{
+  "created_at": "2025-09-11T17:00:37",
+  "as_of": "2025-09-11",
+  "model_default": "litellm/gemini/gemini-1.5-pro",
+  "model_summary": "litellm/gemini/gemini-1.5-flash",
+  "items_count": 3,
+  "totals": {
+    "BAC": 450000.0,
+    "PV": 363264.49,
+    "EV": 202500.0,
+    "AC": 265000.0,
+    "CPI": 0.764,
+    "SPI": 0.557,
+    "CV": -62500.0,
+    "SV": -160764.49,
+    "AsOf": "2025-09-11"
+  },
+  "report": "## Project Portfolio Overview - 2025-09-11\n\n**Overall Status:** The portfolio is behind schedule (SPI 0.56) and over budget (CPI 0.76). Immediate action is required, especially for the Data Migration project.\n\n**Portfolio Totals:**\n\n* Planned Cost: $450,000\n* Actual Cost: $265,000\n* Cost Variance (CV): -$62,500\n* Schedule Variance (SV): -$160,764\n* Estimate at Completion (EAC): $606,007\n\n**Per-Project Highlights:**\n\n* **P1001 - New Website:** Low risk, moderately over budget and behind schedule. Needs schedule recovery and cost monitoring.\n* **P1002 - Mobile App:** Medium risk, over budget and behind schedule. Requires performance review, schedule optimization, and cost control.\n* **P1003 - Data Migration:** Highest risk, significantly over budget and behind schedule. Needs immediate deep dive analysis, re-baselining, resource adjustment, and process improvement.\n\n**Risks & Actions:**\n\n* **P1003 (Data Migration):** Investigate root causes of overruns, re-baseline project, adjust resources, and improve processes.\n* **P1002 (Mobile App):** Analyze cost/schedule variances, optimize schedule, and implement stricter cost controls.\n* **P1001 (New Website):** Create a schedule recovery plan and closely monitor costs.\n* **Portfolio-Level:** Evaluate resource allocation, standardize processes, invest in training, and prioritize projects.\n",
+  "qas": []
+}

@@ -30,7 +30,7 @@ async def get_ingestion_summary(csv_text: str) -> str:
             "If valid, briefly summarize row count and note any extra headers. "
             "If invalid, list missing headers.\n\nCSV:\n" + csv_text
         ),
-        run_config=RunConfig(model=get_active_default_model()),
+        run_config=RunConfig(model=get_active_default_model(), tracing_disabled=True),
     )
     log_event("agent_result", "Ingestion Agent response", {"text": result.final_output})
     return result.final_output
@@ -56,7 +56,7 @@ async def get_evms_report(csv_text: str, as_of_date: Optional[str] = None) -> st
             f"AsOf: {as_of_date or date.today().isoformat()}\n"
             f"CSV:\n{csv_text}"
         ),
-        run_config=RunConfig(model=get_active_default_model()),
+        run_config=RunConfig(model=get_active_default_model(), tracing_disabled=True),
     )
     log_event("agent_result", "EVM Calculator response", {"text": result.final_output})
     return result.final_output
@@ -81,7 +81,7 @@ async def get_risk_assessment(evms_result_json: str) -> str:
             "and propose corrective actions.\n\n"
             f"EVM JSON: {evms_result_json}"
         ),
-        run_config=RunConfig(model=get_active_default_model()),
+        run_config=RunConfig(model=get_active_default_model(), tracing_disabled=True),
     )
     log_event("agent_result", "Risk Analyst response", {"text": result.final_output})
     return result.final_output
@@ -113,7 +113,7 @@ async def run_agent(csv_text: str, as_of_date: Optional[str]) -> str:
     result = await Runner.run(
         orchestrator_agent,
         prompt,
-        run_config=RunConfig(model=get_active_default_model()),
+        run_config=RunConfig(model=get_active_default_model(), tracing_disabled=True),
     )
     return result.final_output
 

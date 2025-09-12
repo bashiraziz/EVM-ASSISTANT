@@ -37,7 +37,7 @@ from evm_app.config import (
 from evm_app.tools.csv_tools import EXPECTED_HEADERS
 from evm_app.tools.evm_tools import compute_portfolio_for_ui, risk_level_and_reasons
 from evm_app.ui.diagnostics import render_diagnostics_panel
-from evm_app.ui.tables import render_cpi_spi_heatmap, render_evms_colored_table
+from evm_app.ui.tables import render_cpi_spi_heatmap, render_evms_colored_table, render_totals_chips
 from evm_app.ui.theme import inject_theme
 from evm_app.ui.progress import render_sidebar as render_progress_sidebar, reset_progress, add_step, update_step
 # Trace UI removed per request; core logging remains internal
@@ -489,8 +489,10 @@ def main():
             st.markdown("### Portfolio Heatmap")
             render_cpi_spi_heatmap(items)
 
+            # Compact portfolio totals (chips) + table
+            render_totals_chips(totals)
             st.markdown("### Computed Metrics")
-            render_evms_colored_table(items[:200], totals)
+            render_evms_colored_table(items[:200], totals, show_totals_banner=False)
 
             # Suggest questions helper (appears above the Q&A section)
             def _suggest_questions(items_list, totals_dict):

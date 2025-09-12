@@ -1,5 +1,5 @@
 streamlit>=1.36
-agents==0.4.0
+
 openai>=1.37.0
 litellm>=1.41.10
 python-dotenv>=1.0

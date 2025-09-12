@@ -500,11 +500,50 @@ def main():
             st.markdown("### Final Report")
             with st.expander("Show detailed narrative report", expanded=False):
                 st.markdown(report_ss or "(no response)")
+            # Download options: MD, TXT, HTML, JSON
+            dl_fmt = st.selectbox(
+                "Download format",
+                ["Markdown (.md)", "Text (.txt)", "HTML (.html)", "JSON (.json)"],
+                index=0,
+            )
+
+            report_text = (report_ss or "Report unavailable.").strip()
+
+            if dl_fmt.startswith("Markdown"):
+                dl_data = report_text
+                dl_name = "evm_report.md"
+                dl_mime = "text/markdown"
+            elif dl_fmt.startswith("Text"):
+                dl_data = report_text
+                dl_name = "evm_report.txt"
+                dl_mime = "text/plain"
+            elif dl_fmt.startswith("HTML"):
+                # Simple HTML wrapper without extra dependencies
+                # Note: this does not render Markdown; it wraps as <pre> for portability
+                html_body = (
+                    "<html><head><meta charset=\"utf-8\"><title>EVM Report</title>"
+                    "<style>body{font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; line-height:1.5; padding:24px;} pre{white-space:pre-wrap;}</style>"
+                    "</head><body><pre>" +
+                    report_text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;") +
+                    "</pre></body></html>"
+                )
+                dl_data = html_body
+                dl_name = "evm_report.html"
+                dl_mime = "text/html"
+            else:  # JSON
+                try:
+                    import json
+                    dl_data = json.dumps({"report": report_text}, ensure_ascii=False, indent=2)
+                except Exception:
+                    dl_data = '{"report": "' + report_text.replace('"', '\\"') + '"}'
+                dl_name = "evm_report.json"
+                dl_mime = "application/json"
+
             st.download_button(
-                "Download report (Markdown)",
-                data=(report_ss or "Report unavailable.").strip(),
-                file_name="evm_report.md",
-                mime="text/markdown",
+                "Download report",
+                data=dl_data,
+                file_name=dl_name,
+                mime=dl_mime,
             )
 
             st.markdown("### Portfolio Heatmap")

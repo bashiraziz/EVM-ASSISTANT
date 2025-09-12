@@ -106,10 +106,12 @@ def render_evms_colored_table(items: List[Dict[str, Any]], totals: Dict[str, Any
         row["Risk"] = risk_level
         rows.append(row)
 
+    header_bg = "#0f172a"  # sober dark navy
+    header_style = f"background:{header_bg};color:#e2e8f0;border-bottom:1px solid #1f2937;"
     html = [
         "<div style='margin-top:12px; overflow-x:auto; max-width:100%; max-height:60vh; overflow-y:auto'>",
         "<table style='border-collapse:collapse;width:100%'>",
-        "<thead class='table-head'><tr>"
+        "<thead class='table-head' style='" + header_style + "'><tr>"
         + "".join(
             (lambda _c: f"<th style='text-align:left;padding:8px 10px;cursor:help' title=\"{tooltips.get(_c, '')}\">{_c}</th>")
             (c)
@@ -167,15 +169,27 @@ def render_totals_chips(totals: Dict[str, Any]):
             return "-"
 
     tot = totals or {}
+    # raw values (for trend)
+    raw = {
+        "BAC": tot.get("BAC"),
+        "PV": tot.get("PV"),
+        "EV": tot.get("EV"),
+        "AC": tot.get("AC"),
+        "CPI": tot.get("CPI"),
+        "SPI": tot.get("SPI"),
+        "CV": tot.get("CV"),
+        "SV": tot.get("SV"),
+    }
+
     chips = [
-        ("BAC", fmt_money(tot.get("BAC"))),
-        ("PV", fmt_money(tot.get("PV"))),
-        ("EV", fmt_money(tot.get("EV"))),
-        ("AC", fmt_money(tot.get("AC"))),
-        ("CPI", fmt_num(tot.get("CPI"))),
-        ("SPI", fmt_num(tot.get("SPI"))),
-        ("CV", fmt_money(tot.get("CV"))),
-        ("SV", fmt_money(tot.get("SV"))),
+        ("BAC", fmt_money(raw["BAC"]), "Budget At Completion", raw["BAC"]),
+        ("PV", fmt_money(raw["PV"]), "Planned Value = BAC × planned % complete", raw["PV"]),
+        ("EV", fmt_money(raw["EV"]), "Earned Value = BAC × actual % complete", raw["EV"]),
+        ("AC", fmt_money(raw["AC"]), "Actual Cost to date", raw["AC"]),
+        ("CPI", fmt_num(raw["CPI"]), "Cost Performance Index = EV / AC (≥ 1.0 is favorable)", raw["CPI"]),
+        ("SPI", fmt_num(raw["SPI"]), "Schedule Performance Index = EV / PV (≥ 1.0 is favorable)", raw["SPI"]),
+        ("CV", fmt_money(raw["CV"]), "Cost Variance = EV − AC (> 0 favorable)", raw["CV"]),
+        ("SV", fmt_money(raw["SV"]), "Schedule Variance = EV − PV (> 0 favorable)", raw["SV"]),
     ]
 
     def chip_style(label: str, value: str) -> str:
@@ -198,11 +212,34 @@ def render_totals_chips(totals: Dict[str, Any]):
         "<div style='margin:8px 0'>",
         "<div style='display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px'>",
     ]
-    for lab, val in chips:
+    def trend_for(label: str, raw_value: Any) -> str:
+        try:
+            v = float(raw_value)
+        except Exception:
+            return ""
+        # Favorable rules
+        if label in ("CPI", "SPI"):
+            if v >= 1.0:
+                return "<span style='margin-left:6px;color:#bbf7d0'>▲</span>"
+            elif v >= 0.95:
+                return "<span style='margin-left:6px;color:#fde68a'>▲</span>"
+            else:
+                return "<span style='margin-left:6px;color:#fecaca'>▼</span>"
+        if label in ("CV", "SV"):
+            if v > 0:
+                return "<span style='margin-left:6px;color:#bbf7d0'>▲</span>"
+            elif v < 0:
+                return "<span style='margin-left:6px;color:#fecaca'>▼</span>"
+            else:
+                return ""
+        return ""
+
+    for lab, val, tip, raw_val in chips:
         stl = chip_style(lab, str(val))
+        glyph = trend_for(lab, raw_val)
         html.append(
-            f"<div style='{stl}'><div style='font-size:12px;opacity:.85'>{lab}</div>"
-            f"<div style='font-size:18px;font-weight:700'>{val}</div></div>"
+            f"<div style='{stl}' title=\"{tip}\"><div style='font-size:12px;opacity:.85'>{lab}</div>"
+            f"<div style='font-size:18px;font-weight:700;display:flex;align-items:center'>{val}{glyph}</div></div>"
         )
     html.append("</div></div>")
     st.markdown("".join(html), unsafe_allow_html=True)

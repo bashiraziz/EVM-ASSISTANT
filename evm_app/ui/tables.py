@@ -16,7 +16,7 @@ def _score_color(val: Optional[float]) -> str:
     return "#b71c1c"
 
 
-def render_evms_colored_table(items: List[Dict[str, Any]], totals: Dict[str, Any]):
+def render_evms_colored_table(items: List[Dict[str, Any]], totals: Dict[str, Any], show_totals_banner: bool = True):
     cols = [
         "ProjectID",
         "ProjectName",
@@ -138,16 +138,73 @@ def render_evms_colored_table(items: List[Dict[str, Any]], totals: Dict[str, Any
     html.append("</tbody>")
     html.append("</table>")
 
-    tot = totals or {}
-    html.append(
-        "<div class='totals-banner' style='margin-top:10px;padding:10px;border-radius:10px;'>"
-        f"<b>Portfolio Totals</b> &mdash; As Of: {fmt(tot.get('AsOf'))} | "
-        f"BAC: {fmt(tot.get('BAC'))}, PV: {fmt(tot.get('PV'))}, EV: {fmt(tot.get('EV'))}, AC: {fmt(tot.get('AC'))}, "
-        f"CPI: {fmt(tot.get('CPI'))}, SPI: {fmt(tot.get('SPI'))}, CV: {fmt(tot.get('CV'))}, SV: {fmt(tot.get('SV'))}"
-        "</div>"
-    )
+    if show_totals_banner:
+        tot = totals or {}
+        html.append(
+            "<div class='totals-banner' style='margin-top:10px;padding:10px;border-radius:10px;'>"
+            f"<b>Portfolio Totals</b> &mdash; As Of: {fmt(tot.get('AsOf'))} | "
+            f"BAC: {fmt(tot.get('BAC'))}, PV: {fmt(tot.get('PV'))}, EV: {fmt(tot.get('EV'))}, AC: {fmt(tot.get('AC'))}, "
+            f"CPI: {fmt(tot.get('CPI'))}, SPI: {fmt(tot.get('SPI'))}, CV: {fmt(tot.get('CV'))}, SV: {fmt(tot.get('SV'))}"
+            "</div>"
+        )
     html.append("</div>")
 
+    st.markdown("".join(html), unsafe_allow_html=True)
+
+
+def render_totals_chips(totals: Dict[str, Any]):
+    """Compact portfolio totals as a responsive chip grid (2x4)."""
+    def fmt_money(v: Optional[float]) -> str:
+        try:
+            return f"${abs(float(v)):,}" if float(v) >= 0 else f"-${abs(float(v)):,}"
+        except Exception:
+            return "-"
+
+    def fmt_num(v: Optional[float]) -> str:
+        try:
+            return f"{float(v):.2f}" if isinstance(v, (int, float, str)) else "-"
+        except Exception:
+            return "-"
+
+    tot = totals or {}
+    chips = [
+        ("BAC", fmt_money(tot.get("BAC"))),
+        ("PV", fmt_money(tot.get("PV"))),
+        ("EV", fmt_money(tot.get("EV"))),
+        ("AC", fmt_money(tot.get("AC"))),
+        ("CPI", fmt_num(tot.get("CPI"))),
+        ("SPI", fmt_num(tot.get("SPI"))),
+        ("CV", fmt_money(tot.get("CV"))),
+        ("SV", fmt_money(tot.get("SV"))),
+    ]
+
+    def chip_style(label: str, value: str) -> str:
+        style = "padding:8px 10px;border:1px solid #2a2f3a;border-radius:10px;background:#111827;"
+        if label in ("CPI", "SPI"):
+            try:
+                v = float(value)
+                if v >= 1.0:
+                    style = style.replace("#111827", "#1b5e20")
+                elif v >= 0.95:
+                    style = style.replace("#111827", "#ff8f00")
+                else:
+                    style = style.replace("#111827", "#b71c1c")
+                style += ";color:#fff"
+            except Exception:
+                pass
+        return style
+
+    html = [
+        "<div style='margin:8px 0'>",
+        "<div style='display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px'>",
+    ]
+    for lab, val in chips:
+        stl = chip_style(lab, str(val))
+        html.append(
+            f"<div style='{stl}'><div style='font-size:12px;opacity:.85'>{lab}</div>"
+            f"<div style='font-size:18px;font-weight:700'>{val}</div></div>"
+        )
+    html.append("</div></div>")
     st.markdown("".join(html), unsafe_allow_html=True)
 
 
@@ -223,5 +280,4 @@ def render_cpi_spi_heatmap(items: List[Dict[str, Any]]):
     st.markdown("".join(html), unsafe_allow_html=True)
 
 
-__all__ = ["render_evms_colored_table", "render_cpi_spi_heatmap"]
-
+__all__ = ["render_evms_colored_table", "render_cpi_spi_heatmap", "render_totals_chips"]

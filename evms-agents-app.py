@@ -498,7 +498,8 @@ def main():
         totals = st.session_state.get("evms_totals") or {}
         if report_ss:
             st.markdown("### Final Report")
-            st.write(report_ss or "(no response)")
+            with st.expander("Show detailed narrative report", expanded=False):
+                st.markdown(report_ss or "(no response)")
             st.download_button(
                 "Download report (Markdown)",
                 data=(report_ss or "Report unavailable.").strip(),
@@ -533,7 +534,11 @@ def main():
                 except ValueError:
                     return pool[:5]
 
-            if st.button("Suggest 5 EVM questions", key="suggest_main", help="Get five example prompts you can ask about this data"):
+            if st.button(
+                "💡 Suggest 5 EVM Questions",
+                key="suggest_main",
+                help="Get five example prompts you can ask about this data",
+            ):
                 st.session_state["__qa_suggestions_main__"] = _suggest_questions(items, totals)
             # If a suggestion was clicked or an answer exists, show quick jump link
             if st.session_state.get("__qa_trigger_main__") or st.session_state.get("__qa_last_q"):
@@ -639,7 +644,12 @@ def main():
                 except ValueError:
                     return base[:5]
 
-            if st.button("Suggest 5 EVM questions", key="suggest_sb", help="Get five example prompts you can ask about this data"):
+            if st.button(
+                "💡 Suggest 5 EVM Questions",
+                key="suggest_sb",
+                help="Get five example prompts you can ask about this data",
+                use_container_width=True,
+            ):
                 st.session_state["__qa_suggestions_sb__"] = _suggest_sidebar(sb_items, sb_totals)
             # Quick access to latest answer without scrolling
             if st.session_state.get("__qa_last_q"):

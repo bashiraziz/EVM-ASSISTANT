@@ -2,17 +2,28 @@ from typing import Any, Dict, Optional
 
 import streamlit as st
 
+# Detect if running under a real Streamlit ScriptRunContext; in bare mode this is None
+try:
+    from streamlit.runtime.scriptrunner import get_script_run_ctx  # type: ignore
+    _HAS_ST_CTX = get_script_run_ctx() is not None
+except Exception:
+    _HAS_ST_CTX = False
+
 
 TRACE_KEY = "trace"
 TRACE_PH_KEY = "__trace_ph__"
 
 
 def _ensure_trace():
+    if not _HAS_ST_CTX:
+        return
     if TRACE_KEY not in st.session_state:
         st.session_state[TRACE_KEY] = []
 
 
 def log_event(kind: str, title: str, details: Optional[Dict[str, Any]] = None):
+    if not _HAS_ST_CTX:
+        return
     _ensure_trace()
     st.session_state[TRACE_KEY].append({
         "kind": kind,
@@ -23,11 +34,15 @@ def log_event(kind: str, title: str, details: Optional[Dict[str, Any]] = None):
 
 
 def clear_trace():
+    if not _HAS_ST_CTX:
+        return
     st.session_state[TRACE_KEY] = []
     _render_trace_into_placeholder()
 
 
 def render_trace():
+    if not _HAS_ST_CTX:
+        return
     st.markdown("### Run Trace")
     if not st.session_state.get(TRACE_KEY):
         st.info("No trace available.")
@@ -65,6 +80,8 @@ def render_trace():
 
 
 def _render_trace_into_placeholder():
+    if not _HAS_ST_CTX:
+        return
     ph = st.session_state.get(TRACE_PH_KEY)
     if not ph:
         return

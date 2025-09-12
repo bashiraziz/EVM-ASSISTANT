@@ -58,13 +58,34 @@ async def _qa_text(totals: Dict[str, Any], items: List[Dict[str, Any]], q: str) 
     return (res.final_output or "").strip()
 
 
-def _read_csv_input(file: Optional[gr.File], pasted: str | None) -> str:
+def _read_csv_input(file: Optional[Any], pasted: str | None) -> str:
+    """Return CSV text from a Gradio File or pasted input.
+
+    Supports gr.File types: filepath string, dict with 'path', or a file-like.
+    """
+    # Try uploaded file first
     if file is not None:
         try:
-            return file.read().decode("utf-8")  # type: ignore[attr-defined]
-        except Exception:
+            # gr.File with type="filepath" → str
+            if isinstance(file, str):
+                with open(file, "rb") as fh:
+                    return fh.read().decode("utf-8", errors="ignore")
+            # gr.File default → dict with 'path'
+            if isinstance(file, dict) and "path" in file and file["path"]:
+                with open(file["path"], "rb") as fh:
+                    return fh.read().decode("utf-8", errors="ignore")
+            # File-like object
+            if hasattr(file, "read"):
+                data = file.read()
+                if isinstance(data, bytes):
+                    return data.decode("utf-8", errors="ignore")
+                return str(data)
+        except Exception as e:
+            # Fall through to pasted
+            _ = e
             pass
-    return pasted or ""
+    # Fallback to pasted text
+    return (pasted or "").strip()
 
 
 async def _run(csv_text: str, as_of: Optional[str], mode: str, progress=gr.Progress()):
@@ -99,7 +120,9 @@ def _suggest_questions(_: Dict[str, Any], __: List[Dict[str, Any]]):
         "Which projects should be watched next month based on risk level?",
     ]
     import random
-    return [[q] for q in random.sample(pool, k=5)]
+    samples = [[q] for q in random.sample(pool, k=5)]
+    # Gradio Dataset requires returning a new Dataset object when updating
+    return gr.Dataset(components=[gr.Textbox(label="")], samples=samples)
 
 
 with gr.Blocks(title="EVM Assistant — Gradio") as demo:
@@ -116,7 +139,7 @@ with gr.Blocks(title="EVM Assistant — Gradio") as demo:
                 label="Mode",
             )
             as_of = gr.Textbox(value=str(date.today()), label="As-of date (YYYY-MM-DD)")
-            upload = gr.File(label="Upload CSV", file_types=[".csv"])
+            upload = gr.File(label="Upload CSV", file_types=[".csv"], file_count="single", type="filepath")
             pasted = gr.Textbox(label="Or paste CSV", lines=6)
             run_btn = gr.Button("Run EVM Analysis", variant="primary")
             status = gr.Markdown()
@@ -132,7 +155,7 @@ with gr.Blocks(title="EVM Assistant — Gradio") as demo:
 
         with gr.Column(scale=2):
             summary_md = gr.Markdown("### Final Report\n\n")
-            df = gr.Dataframe(headers=[], label="Computed Metrics")
+            df = gr.Dataframe(value=pd.DataFrame(), label="Computed Metrics", type="pandas")
             totals_json = gr.JSON(label="Portfolio Totals")
 
     async def on_run(file, pasted_text, as_of_text, mode_text):
@@ -167,6 +190,12 @@ with gr.Blocks(title="EVM Assistant — Gradio") as demo:
 
 if __name__ == "__main__":
     import os
-    port = int(os.getenv("PORT", "7860"))
-    host = os.getenv("HOST", "0.0.0.0")
+    # Local dev: prefer 127.0.0.1 so the printed URL is clickable.
+    # Deployment: platforms set PORT; bind 0.0.0.0 unless HOST overrides.
+    port_env = os.getenv("PORT")
+    port = int(port_env or "7860")
+    if os.getenv("HOST"):
+        host = os.getenv("HOST", "127.0.0.1")
+    else:
+        host = "0.0.0.0" if port_env else "127.0.0.1"
     demo.queue().launch(server_name=host, server_port=port)

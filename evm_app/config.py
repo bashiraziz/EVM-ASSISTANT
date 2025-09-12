@@ -4,6 +4,13 @@ from typing import Optional
 
 from dotenv import load_dotenv
 
+try:
+    # Optional import; only used for safe checks
+    from evm_app.ui.st_compat import in_streamlit
+except Exception:
+    def in_streamlit() -> bool:  # type: ignore
+        return False
+
 # Load .env early
 load_dotenv()
 
@@ -49,8 +56,8 @@ def get_active_default_model() -> str:
     ui_val: Optional[str] = None
     try:
         import streamlit as st  # local import to avoid CLI import cost
-
-        ui_val = st.session_state.get("__model_default__")
+        if in_streamlit():
+            ui_val = st.session_state.get("__model_default__")
     except Exception:
         pass
     if ui_val:
@@ -62,8 +69,8 @@ def get_active_summary_model() -> str:
     ui_val: Optional[str] = None
     try:
         import streamlit as st
-
-        ui_val = st.session_state.get("__model_summary__")
+        if in_streamlit():
+            ui_val = st.session_state.get("__model_summary__")
     except Exception:
         pass
     if ui_val:
@@ -118,9 +125,10 @@ if PROVIDER == "LiteLLM" and not os.getenv("LITELLM_LOG"):
 def load_url_params_into_state():
     try:
         import streamlit as st
-
+        if not in_streamlit():
+            return
         try:
-            qp = dict(st.query_params)
+            qp = dict(st.query_params)  # Streamlit >=1.31
         except Exception:
             qp = st.experimental_get_query_params() or {}
 
@@ -140,7 +148,8 @@ def load_url_params_into_state():
 def set_url_params_safe(**params: str):
     try:
         import streamlit as st
-
+        if not in_streamlit():
+            return
         clean = {k: v for k, v in params.items() if v is not None and v != ""}
         if clean:
             try:

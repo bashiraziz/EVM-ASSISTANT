@@ -4,6 +4,8 @@ EVM Assistant (Streamlit UI)
 This UI is now thin: all logic, agents, tools, and UI helpers live under `evm_app/`.
 """
 
+from __future__ import annotations
+
 # --- Compatibility shim for third-party `agents` package importing TF1 APIs ---
 # Some distributions of the `agents` package import TensorFlow 1.x symbols like
 # `tf.contrib.distributions` at import time. We provide a minimal shim using
@@ -24,8 +26,6 @@ except Exception:
     # If TensorFlow is not present or anything else fails, continue. The
     # OpenAI Agents SDK path does not require TF at runtime.
     pass
-
-from __future__ import annotations
 
 import asyncio
 import csv

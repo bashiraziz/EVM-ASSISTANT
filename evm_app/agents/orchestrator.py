@@ -1,8 +1,8 @@
 from datetime import date
 from typing import Optional
 
-from agents import Agent, Runner, function_tool
-from agents.run import RunConfig
+from agents import Agent, function_tool
+from agents.run import Runner, RunConfig
 
 from ..config import get_active_default_model
 from ..ui.trace import log_event

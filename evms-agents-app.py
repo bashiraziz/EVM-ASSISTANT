@@ -16,8 +16,7 @@ import random
 from typing import Any, Dict, List, Optional
 
 import streamlit as st
-from agents import Runner
-from agents.run import RunConfig
+from agents.run import Runner, RunConfig
 
 import evm_app.config as app_config
 from evm_app.agents.orchestrator import run_agent

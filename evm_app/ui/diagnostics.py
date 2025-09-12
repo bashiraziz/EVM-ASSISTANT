@@ -4,8 +4,8 @@ import asyncio
 import os
 import streamlit as st
 
-from agents import Agent, Runner
-from agents.run import RunConfig
+from agents import Agent
+from agents.run import Runner, RunConfig
 
 from ..config import (
     PROVIDER,
@@ -71,4 +71,3 @@ def render_diagnostics_panel():
 
 
 __all__ = ["render_diagnostics_panel"]
-

@@ -532,7 +532,6 @@ def main():
                 dl_mime = "text/html"
             else:  # JSON
                 try:
-                    import json
                     dl_data = json.dumps({"report": report_text}, ensure_ascii=False, indent=2)
                 except Exception:
                     dl_data = '{"report": "' + report_text.replace('"', '\\"') + '"}'

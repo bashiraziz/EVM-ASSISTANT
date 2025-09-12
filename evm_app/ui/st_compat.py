@@ -1,7 +1,7 @@
 """Streamlit compatibility helpers.
 
 Allows other modules to check if code is running inside a real
-Streamlit ScriptRunContext. In Gradio or plain Python, importing
+Streamlit ScriptRunContext. When running outside Streamlit, importing
 Streamlit may work but there is no ScriptRunContext, which can
 trigger warnings when touching session_state.
 """
@@ -28,4 +28,3 @@ def in_streamlit() -> bool:
 
 
 __all__ = ["IN_STREAMLIT", "in_streamlit", "st"]
-

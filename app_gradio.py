@@ -166,5 +166,7 @@ with gr.Blocks(title="EVM Assistant — Gradio") as demo:
     ask_btn.click(on_ask, inputs=[qa_in, st_totals, st_items], outputs=[answer_md])
 
 if __name__ == "__main__":
-    demo.queue().launch()
-
+    import os
+    port = int(os.getenv("PORT", "7860"))
+    host = os.getenv("HOST", "0.0.0.0")
+    demo.queue().launch(server_name=host, server_port=port)

@@ -515,6 +515,9 @@ def main():
 
             if st.button("Suggest 5 EVM questions", key="suggest_main", help="Get five example prompts you can ask about this data"):
                 st.session_state["__qa_suggestions_main__"] = _suggest_questions(items, totals)
+            # If a suggestion was clicked or an answer exists, show quick jump link
+            if st.session_state.get("__qa_trigger_main__") or st.session_state.get("__qa_last_q"):
+                st.markdown("[View answer](#answer)")
             if st.session_state.get("__qa_suggestions_main__"):
                 st.markdown("#### Suggested questions")
                 cols = st.columns(1)
@@ -542,7 +545,7 @@ def main():
             with st.form("qa_form"):
                 q = st.text_input(
                     "Ask Rowshni",
-                    placeholder="Ask Rowshni about these projects…",
+                    placeholder="Ask Rowshni…",
                     key="qa_question",
                     label_visibility="collapsed",
                 )
@@ -581,6 +584,7 @@ def main():
             last_q = st.session_state.get("__qa_last_q")
             last_a = st.session_state.get("__qa_last_a")
             if last_q:
+                st.markdown("<a name='answer'></a>", unsafe_allow_html=True)
                 st.markdown(f"#### Q: {last_q}")
                 if last_a and "OUT_OF_SCOPE" in last_a:
                     st.info("The assistant can only answer questions about the uploaded data.")
@@ -617,6 +621,11 @@ def main():
 
             if st.button("Suggest 5 EVM questions", key="suggest_sb", help="Get five example prompts you can ask about this data"):
                 st.session_state["__qa_suggestions_sb__"] = _suggest_sidebar(sb_items, sb_totals)
+            # Quick access to latest answer without scrolling
+            if st.session_state.get("__qa_last_q"):
+                with st.expander("View latest answer", expanded=False):
+                    st.markdown(f"**Q:** {st.session_state.get('__qa_last_q')}")
+                    st.write(st.session_state.get("__qa_last_a", ""))
             if st.session_state.get("__qa_suggestions_sb__"):
                 for i, s in enumerate(st.session_state["__qa_suggestions_sb__"]):
                     if st.button(s, key=f"suggest_pick_sb_{i}"):
@@ -629,7 +638,7 @@ def main():
             with st.form("qa_form_sidebar"):
                 q_sb = st.text_input(
                     "Ask Rowshni",
-                    placeholder="Ask Rowshni about these projects…",
+                    placeholder="Ask Rowshni…",
                     key="qa_question_sb",
                     label_visibility="collapsed",
                 )

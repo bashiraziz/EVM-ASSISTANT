@@ -9,11 +9,12 @@ from ..tools.evm_tools import risk_level_and_reasons
 def _score_color(val: Optional[float]) -> str:
     if val is None:
         return "#444"
+    # Consolidated, professional palette: green (good), slate (neutral), red (bad)
     if val >= 1.0:
-        return "#1b5e20"
+        return "#166534"  # green-800
     if val >= 0.95:
-        return "#ff8f00"
-    return "#b71c1c"
+        return "#334155"  # slate-700
+    return "#7f1d1d"      # red-800
 
 
 def render_evms_colored_table(items: List[Dict[str, Any]], totals: Dict[str, Any], show_totals_banner: bool = True):
@@ -128,7 +129,7 @@ def render_evms_colored_table(items: List[Dict[str, Any]], totals: Dict[str, Any
             if c in ("CPI", "SPI"):
                 style += f"background:{_score_color(val)};color:#fff;"
             if c == "Risk":
-                color = {"high": "#b71c1c", "medium": "#ff8f00", "low": "#1b5e20"}.get(
+                color = {"high": "#7f1d1d", "medium": "#334155", "low": "#166534"}.get(
                     str(val), "#444"
                 )
                 style += f"background:{color};color:#fff;font-weight:600;"
@@ -193,16 +194,16 @@ def render_totals_chips(totals: Dict[str, Any]):
     ]
 
     def chip_style(label: str, value: str) -> str:
-        style = "padding:8px 10px;border:1px solid #2a2f3a;border-radius:10px;background:#111827;"
+        style = "padding:8px 10px;border:1px solid #2a2f3a;border-radius:10px;background:#0b1220;"
         if label in ("CPI", "SPI"):
             try:
                 v = float(value)
                 if v >= 1.0:
-                    style = style.replace("#111827", "#1b5e20")
+                    style = style.replace("#0b1220", "#166534")
                 elif v >= 0.95:
-                    style = style.replace("#111827", "#ff8f00")
+                    style = style.replace("#0b1220", "#334155")
                 else:
-                    style = style.replace("#111827", "#b71c1c")
+                    style = style.replace("#0b1220", "#7f1d1d")
                 style += ";color:#fff"
             except Exception:
                 pass
@@ -220,14 +221,14 @@ def render_totals_chips(totals: Dict[str, Any]):
         # Favorable rules
         if label in ("CPI", "SPI"):
             if v >= 1.0:
-                return "<span style='margin-left:6px;color:#bbf7d0'>▲</span>"
+                return "<span style='margin-left:6px;color:#86efac'>▲</span>"  # green-300
             elif v >= 0.95:
-                return "<span style='margin-left:6px;color:#fde68a'>▲</span>"
+                return "<span style='margin-left:6px;color:#cbd5e1'>▲</span>"  # slate-300
             else:
-                return "<span style='margin-left:6px;color:#fecaca'>▼</span>"
+                return "<span style='margin-left:6px;color:#fecaca'>▼</span>"  # red-200
         if label in ("CV", "SV"):
             if v > 0:
-                return "<span style='margin-left:6px;color:#bbf7d0'>▲</span>"
+                return "<span style='margin-left:6px;color:#86efac'>▲</span>"
             elif v < 0:
                 return "<span style='margin-left:6px;color:#fecaca'>▼</span>"
             else:

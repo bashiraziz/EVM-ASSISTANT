@@ -4,6 +4,27 @@ EVM Assistant (Streamlit UI)
 This UI is now thin: all logic, agents, tools, and UI helpers live under `evm_app/`.
 """
 
+# --- Compatibility shim for third-party `agents` package importing TF1 APIs ---
+# Some distributions of the `agents` package import TensorFlow 1.x symbols like
+# `tf.contrib.distributions` at import time. We provide a minimal shim using
+# `tensorflow_probability` so that importing `agents` does not crash on TF2.
+try:
+    import types
+    import tensorflow as tf  # type: ignore
+    if not hasattr(tf, "contrib"):
+        try:
+            from tensorflow_probability import distributions as _tfd  # type: ignore
+            tf.contrib = types.SimpleNamespace(distributions=_tfd)  # type: ignore[attr-defined]
+        except Exception:
+            # Fallback to a dummy object to avoid AttributeError during import.
+            dummy = types.SimpleNamespace()
+            dummy.distributions = None
+            tf.contrib = dummy  # type: ignore[attr-defined]
+except Exception:
+    # If TensorFlow is not present or anything else fails, continue. The
+    # OpenAI Agents SDK path does not require TF at runtime.
+    pass
+
 from __future__ import annotations
 
 import asyncio

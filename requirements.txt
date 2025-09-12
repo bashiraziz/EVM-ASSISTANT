@@ -6,3 +6,4 @@ python-dotenv>=1.0
 pandas>=2.2
 numpy>=1.26
 gradio>=4.0
+tensorflow-probability>=0.24

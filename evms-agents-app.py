@@ -12,6 +12,7 @@ import io
 import json
 import os
 from datetime import date
+import random
 from typing import Any, Dict, List, Optional
 
 import streamlit as st
@@ -414,10 +415,10 @@ def main():
                 if sb_p1:
                     sb_p1.write("● Ingestion Agent — Done")
 
-                s2 = add_step("EVM Calculator — Compute portfolio metrics", "running")
+                s2 = add_step("EVM Calculator Agent — Compute portfolio metrics", "running")
                 from evm_app.agents.evms_calculator_agent import evms_calculator_agent
                 if sb_p2:
-                    sb_p2.write("○ EVM Calculator — Compute portfolio metrics")
+                    sb_p2.write("○ EVM Calculator Agent — Compute portfolio metrics")
                 evm_res = asyncio.run(
                     Runner.run(
                         evms_calculator_agent,
@@ -433,12 +434,12 @@ def main():
                 evm = (evm_res.final_output or "").strip()
                 update_step(s2, "done")
                 if sb_p2:
-                    sb_p2.write("● EVM Calculator — Done")
+                    sb_p2.write("● EVM Calculator Agent — Done")
 
-                s3 = add_step("Risk Analyst — Assess risks", "running")
+                s3 = add_step("Risk Analyst Agent — Assess risks", "running")
                 from evm_app.agents.risk_analyst_agent import risk_analyst_agent
                 if sb_p3:
-                    sb_p3.write("○ Risk Analyst — Assess risks")
+                    sb_p3.write("○ Risk Analyst Agent — Assess risks")
                 risk_res = asyncio.run(
                     Runner.run(
                         risk_analyst_agent,
@@ -452,7 +453,7 @@ def main():
                 risk = (risk_res.final_output or "").strip()
                 update_step(s3, "done")
                 if sb_p3:
-                    sb_p3.write("● Risk Analyst — Done")
+                    sb_p3.write("● Risk Analyst Agent — Done")
 
                 agent_response = f"{ing}\n\n{evm}\n\n{risk}"
 
@@ -491,12 +492,45 @@ def main():
             st.markdown("### Computed Metrics")
             render_evms_colored_table(items[:200], totals)
 
+            # Suggest questions helper (appears above the Q&A section)
+            def _suggest_questions(items_list, totals_dict):
+                pool = [
+                    "Which projects are behind schedule (SPI < 1.0)?",
+                    "Which projects are over budget (CPI < 1.0)?",
+                    "List top 3 projects by cost variance (CV).",
+                    "Which projects have both CPI and SPI below thresholds?",
+                    "What is the total BAC, PV, EV, and AC across the portfolio?",
+                    "Which projects improved SPI compared to last period?",
+                    "Which projects should be watched next month based on risk level?",
+                    "What corrective actions are suggested for high‑risk projects?",
+                    "How many projects are on track (CPI ≥ 1 and SPI ≥ 1)?",
+                    "Which department has the most at‑risk projects?",
+                ]
+                try:
+                    return random.sample(pool, k=5)
+                except ValueError:
+                    return pool[:5]
+
+            if st.button("Suggest 5 EVM questions", key="suggest_main", help="Get five example prompts you can ask about this data"):
+                st.session_state["__qa_suggestions_main__"] = _suggest_questions(items, totals)
+            if st.session_state.get("__qa_suggestions_main__"):
+                st.markdown("#### Suggested questions")
+                cols = st.columns(1)
+                for i, qtext in enumerate(st.session_state["__qa_suggestions_main__"]):
+                    if st.button(qtext, key=f"suggest_pick_main_{i}"):
+                        st.session_state["qa_question"] = qtext
+                        st.session_state["__qa_trigger_main__"] = True
+                        try:
+                            st.rerun()
+                        except Exception:
+                            st.experimental_rerun()
+
     # Simple Q&A (data-only) — stays outside submit and follows results
     with results_area:
         items_ss = st.session_state.get("evms_items")
         totals_ss = st.session_state.get("evms_totals")
         if items_ss is not None and totals_ss is not None:
-            st.markdown("### Ask a question about these projects")
+            st.markdown("### Ask Rowshni a question about these projects")
 
             # Clear pending field if requested (must happen BEFORE rendering the widget)
             if st.session_state.get("__qa_clear"):
@@ -505,12 +539,17 @@ def main():
 
             with st.form("qa_form"):
                 q = st.text_input(
-                    "Question (answers use only this data)",
-                    placeholder="e.g., How many projects are over budget?",
+                    "Ask Rowshni",
+                    placeholder="Ask Rowshni about these projects…",
                     key="qa_question",
+                    label_visibility="collapsed",
                 )
-                submitted = st.form_submit_button("Ask")
-            if submitted and q.strip():
+                submitted = st.form_submit_button("Ask Rowshni")
+                st.caption("Press Enter or click ‘Ask Rowshni’")
+            auto_trigger = st.session_state.get("__qa_trigger_main__", False)
+            if submitted and q.strip() or (auto_trigger and (st.session_state.get("qa_question") or "").strip()):
+                if auto_trigger:
+                    q = st.session_state.get("qa_question", "")
                 qa_prompt = (
                     "Answer strictly using this data. If unknown, say so.\n\n"
                     f"Totals: {json.dumps(totals_ss)}\n"
@@ -529,6 +568,8 @@ def main():
                 st.session_state["__qa_last_q"] = q.strip()
                 st.session_state["__qa_last_a"] = resp
                 st.session_state["__qa_clear"] = True
+                if auto_trigger:
+                    st.session_state.pop("__qa_trigger_main__", None)
                 try:
                     st.rerun()
                 except Exception:
@@ -548,7 +589,7 @@ def main():
 
     # Sidebar Q&A rendered at end so it activates immediately after results are computed
     with st.sidebar:
-        st.markdown("### Q&A")
+        st.markdown("### Ask Rowshni")
         sb_items = st.session_state.get("evms_items")
         sb_totals = st.session_state.get("evms_totals")
         if sb_items is None or sb_totals is None:
@@ -557,16 +598,45 @@ def main():
             if st.session_state.get("__qa_clear_sb"):
                 st.session_state["qa_question_sb"] = ""
                 del st.session_state["__qa_clear_sb"]
+            # Sidebar suggestions button
+            def _suggest_sidebar(items_list, totals_dict):
+                base = [
+                    "Which projects are behind schedule (SPI < 1.0)?",
+                    "Which projects are over budget (CPI < 1.0)?",
+                    "Show top 3 projects by negative cost variance.",
+                    "Which projects have both CPI and SPI below thresholds?",
+                    "Summarize portfolio totals (BAC, PV, EV, AC).",
+                    "Which projects are medium/high risk and why?",
+                ]
+                try:
+                    return random.sample(base, k=5)
+                except ValueError:
+                    return base[:5]
+
+            if st.button("Suggest 5 EVM questions", key="suggest_sb", help="Get five example prompts you can ask about this data"):
+                st.session_state["__qa_suggestions_sb__"] = _suggest_sidebar(sb_items, sb_totals)
+            if st.session_state.get("__qa_suggestions_sb__"):
+                for i, s in enumerate(st.session_state["__qa_suggestions_sb__"]):
+                    if st.button(s, key=f"suggest_pick_sb_{i}"):
+                        st.session_state["qa_question_sb"] = s
+                        st.session_state["__qa_trigger_sb__"] = True
+                        try:
+                            st.rerun()
+                        except Exception:
+                            st.experimental_rerun()
             with st.form("qa_form_sidebar"):
                 q_sb = st.text_input(
-                    "Ask a question",
-                    placeholder="Type your question…",
+                    "Ask Rowshni",
+                    placeholder="Ask Rowshni about these projects…",
                     key="qa_question_sb",
                     label_visibility="collapsed",
                 )
-                sb_submit = st.form_submit_button("Ask")
-                st.caption("Press Enter or click Ask")
-            if sb_submit and q_sb.strip():
+                sb_submit = st.form_submit_button("Ask Rowshni")
+                st.caption("Press Enter or click ‘Ask Rowshni’")
+            auto_sb = st.session_state.get("__qa_trigger_sb__", False)
+            if sb_submit and q_sb.strip() or (auto_sb and (st.session_state.get("qa_question_sb") or "").strip()):
+                if auto_sb:
+                    q_sb = st.session_state.get("qa_question_sb", "")
                 qa_prompt_sb = (
                     "Answer strictly using this data. If unknown, say so.\n\n"
                     f"Totals: {json.dumps(sb_totals)}\n"
@@ -584,6 +654,8 @@ def main():
                 st.session_state["__qa_last_q"] = q_sb.strip()
                 st.session_state["__qa_last_a"] = resp_sb
                 st.session_state["__qa_clear_sb"] = True
+                if auto_sb:
+                    st.session_state.pop("__qa_trigger_sb__", None)
                 try:
                     st.rerun()
                 except Exception:

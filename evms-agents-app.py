@@ -60,6 +60,7 @@ from evm_app.tools.evm_tools import compute_portfolio_for_ui, risk_level_and_rea
 from evm_app.ui.diagnostics import render_diagnostics_panel
 from evm_app.ui.tables import render_cpi_spi_heatmap, render_evms_colored_table, render_totals_chips
 from evm_app.ui.theme import inject_theme
+from evm_app.ui.about import render_about_panel
 from evm_app.ui.progress import (
     render_sidebar as render_progress_sidebar,
     set_sidebar_badges,
@@ -339,7 +340,9 @@ def main():
     # Submit + Back to top link side-by-side
     btn_col, top_col = st.columns([1, 1])
     with btn_col:
-        run_clicked = st.button("Run EVM Analysis")
+        st.markdown("<div class='primary-cta'>", unsafe_allow_html=True)
+        run_clicked = st.button("▶ Run EVM Analysis")
+        st.markdown("</div>", unsafe_allow_html=True)
     with top_col:
         st.markdown("<div class='link-right'><a class='link-btn' href='#top'>Back to top</a></div>", unsafe_allow_html=True)
 
@@ -738,9 +741,11 @@ def main():
                 st.session_state["__qa_suggestions_sb__"] = _suggest_sidebar(sb_items, sb_totals)
             # Quick access to latest answer without scrolling
             if st.session_state.get("__qa_last_q"):
+                st.markdown("<div class='hl-exp'>", unsafe_allow_html=True)
                 with st.expander("View latest answer", expanded=False):
                     st.markdown(f"**Q:** {st.session_state.get('__qa_last_q')}")
                     st.write(st.session_state.get("__qa_last_a", ""))
+                st.markdown("</div>", unsafe_allow_html=True)
             if st.session_state.get("__qa_suggestions_sb__"):
                 for i, s in enumerate(st.session_state["__qa_suggestions_sb__"]):
                     if st.button(s, key=f"suggest_pick_sb_{i}"):
@@ -801,6 +806,9 @@ def main():
                     st.rerun()
                 except Exception:
                     st.experimental_rerun()
+
+        # About panel (collapsed expander)
+        render_about_panel()
 
 
 if __name__ == "__main__":

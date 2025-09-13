@@ -25,6 +25,23 @@ def inject_theme():
         .report-card{background:radial-gradient(1200px 400px at 0% 0%, rgba(11,108,240,.12), transparent),
                      radial-gradient(1200px 400px at 100% 0%, rgba(24,194,156,.10), transparent);
                      border:1px solid rgba(255,255,255,.10); border-radius:12px; padding:12px 14px;}
+        /* Primary CTA wrapper to target the Run button only */
+        .primary-cta .stButton>button{
+            font-weight:700; border-radius:999px; padding:10px 18px;
+            background:linear-gradient(90deg,var(--acc1),var(--acc2));
+            color:#fff; border:0; box-shadow:0 2px 12px rgba(11,108,240,.25);
+        }
+        .primary-cta .stButton>button:hover{filter:brightness(1.02)}
+        .primary-cta .stButton>button:focus{outline:2px solid rgba(24,194,156,.6)}
+
+        /* Highlight the expander summary for "View latest answer" like a pill */
+        .hl-exp [data-testid="stExpander"] > details > summary{
+            background:linear-gradient(90deg,var(--acc1),var(--acc2));
+            color:#fff; border:0; border-radius:999px; padding:8px 14px; font-weight:700;
+            box-shadow:0 2px 12px rgba(11,108,240,.18);
+        }
+        .hl-exp [data-testid="stExpander"] > details > summary:hover{filter:brightness(1.02)}
+        .hl-exp [data-testid="stExpander"] > details > summary p{color:#fff; margin:0}
         </style>
         """,
         unsafe_allow_html=True,

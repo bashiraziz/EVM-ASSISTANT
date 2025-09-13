@@ -28,6 +28,7 @@ except Exception:
     pass
 
 import asyncio
+import time
 import csv
 import io
 import json
@@ -59,7 +60,14 @@ from evm_app.tools.evm_tools import compute_portfolio_for_ui, risk_level_and_rea
 from evm_app.ui.diagnostics import render_diagnostics_panel
 from evm_app.ui.tables import render_cpi_spi_heatmap, render_evms_colored_table, render_totals_chips
 from evm_app.ui.theme import inject_theme
-from evm_app.ui.progress import render_sidebar as render_progress_sidebar, reset_progress, add_step, update_step
+from evm_app.ui.progress import (
+    render_sidebar as render_progress_sidebar,
+    reset_progress,
+    add_step,
+    update_step,
+    remove_steps_by_prefix,
+    prune_completed,
+)
 # Trace UI removed per request; core logging remains internal
 
 # Disable/neutralize LiteLLM's background LoggingWorker to avoid event-loop issues/warnings in Streamlit
@@ -197,8 +205,8 @@ def main():
         # Reapply URL params without 'reset'
         try:
             # Preserve current md/ms/cpi/spi
-            md = st.session_state.get("__model_default__")
-            ms = st.session_state.get("__model_summary__")
+            md = st.session_state.get("__mdl_default__") or st.session_state.get("__model_default__")
+            ms = st.session_state.get("__mdl_summary__") or st.session_state.get("__model_summary__")
             cpi = qp.get("cpi") if isinstance(qp.get("cpi"), str) else None
             spi = qp.get("spi") if isinstance(qp.get("spi"), str) else None
             clean = {}
@@ -242,7 +250,7 @@ def main():
                 if _base_model_name(DEFAULT_MODEL) in model_options
                 else 0
             ),
-            key="__model_default__",
+            key="__mdl_default__",
             help="Model used by the orchestrator and most agents",
         )
     with col_m2:
@@ -254,7 +262,7 @@ def main():
                 if _base_model_name(SUMMARY_MODEL) in model_options
                 else 1
             ),
-            key="__model_summary__",
+            key="__mdl_summary__",
             help="Faster model recommended for summaries",
         )
     with col_thr:
@@ -281,8 +289,6 @@ def main():
 
     # Diagnostics
     render_diagnostics_panel()
-    # Always render progress (if any) in the sidebar
-    render_progress_sidebar()
 
     # Sidebar Q&A will be rendered once at the end after results are available
 
@@ -334,6 +340,14 @@ def main():
         run_clicked = st.button("Run EVM Analysis")
     with top_col:
         st.markdown("<div class='link-right'><a class='link-btn' href='#top'>Back to top</a></div>", unsafe_allow_html=True)
+
+    # When starting a new run, clear progress immediately so the sidebar starts fresh
+    if run_clicked:
+        reset_progress()
+        render_progress_sidebar()
+    else:
+        # Idle render to show any existing statuses
+        render_progress_sidebar()
 
     if run_clicked:
         csv_text = (file.read().decode("utf-8") if file else pasted_csv_text) or ""
@@ -400,25 +414,16 @@ def main():
                 st.session_state["evms_totals"] = totals
                 st.session_state["evms_report"] = agent_response
                 st.session_state["evms_as_of"] = as_of_str
+                # Keep all completed items visible in Fast mode as well
             else:
                 if status:
                     status.update(label="Running multi-agent workflow…", state="running")
                 # Sidebar progress with friendly agent names
                 reset_progress()
                 s1 = add_step("Ingestion Agent — Parse & validate CSV", "running")
+                render_progress_sidebar()
                 # Inline live sidebar placeholders for immediate feedback
-                try:
-                    with st.sidebar:
-                        st.markdown("### Working")
-                        sb_p1 = st.empty()
-                        sb_p2 = st.empty()
-                        sb_p3 = st.empty()
-                        sb_p1.write("○ Ingestion Agent — Parse & validate CSV")
-                        # Ensure consistent naming: always include the word 'Agent'
-                        sb_p2.write("• Pending: EVM Calculator Agent — Compute portfolio metrics")
-                        sb_p3.write("• Pending: Risk Analyst Agent — Assess risks")
-                except Exception:
-                    sb_p1 = sb_p2 = sb_p3 = None
+                # Sidebar is rendered by progress module; avoid separate ad-hoc rows
                 from evm_app.agents.ingestion_agent import ingestion_agent
                 ing_res = asyncio.run(
                     Runner.run(
@@ -433,13 +438,12 @@ def main():
                 )
                 ing = (ing_res.final_output or "").strip()
                 update_step(s1, "done")
-                if sb_p1:
-                    sb_p1.write("● Ingestion Agent — Done")
+                render_progress_sidebar()
 
                 s2 = add_step("EVM Calculator Agent — Compute portfolio metrics", "running")
+                render_progress_sidebar()
                 from evm_app.agents.evms_calculator_agent import evms_calculator_agent
-                if sb_p2:
-                    sb_p2.write("○ EVM Calculator Agent — Compute portfolio metrics")
+                # Progress sidebar handles live rendering
                 evm_res = asyncio.run(
                     Runner.run(
                         evms_calculator_agent,
@@ -454,13 +458,12 @@ def main():
                 )
                 evm = (evm_res.final_output or "").strip()
                 update_step(s2, "done")
-                if sb_p2:
-                    sb_p2.write("● EVM Calculator Agent — Done")
+                render_progress_sidebar()
 
                 s3 = add_step("Risk Analyst Agent — Assess risks", "running")
+                render_progress_sidebar()
                 from evm_app.agents.risk_analyst_agent import risk_analyst_agent
-                if sb_p3:
-                    sb_p3.write("○ Risk Analyst Agent — Assess risks")
+                # Progress sidebar handles live rendering
                 risk_res = asyncio.run(
                     Runner.run(
                         risk_analyst_agent,
@@ -473,10 +476,11 @@ def main():
                 )
                 risk = (risk_res.final_output or "").strip()
                 update_step(s3, "done")
-                if sb_p3:
-                    sb_p3.write("● Risk Analyst Agent — Done")
+                render_progress_sidebar()
 
                 agent_response = f"{ing}\n\n{evm}\n\n{risk}"
+
+                # Keep all completed items visible until a new run
 
                 # Also compute and persist items/totals for visuals & Q&A
                 if status:
@@ -638,6 +642,19 @@ def main():
                     f"Items: {json.dumps(items_ss)}\n"
                     f"Question: {q.strip()}"
                 )
+                # Remove any prior Q&A steps and show a live sidebar placeholder
+                # Keep prior Q&A history; add a new fetching entry without pruning
+                p_qna = add_step("Project Q&A Agent - Fetching answer", "running")
+                # Re-render progress so the new fetching state appears immediately
+                render_progress_sidebar()
+                try:
+                    with st.sidebar:
+                        qa_live = st.empty()
+                        qa_live.write("○ Project Q&A Agent - Fetching answer")
+                except Exception:
+                    qa_live = None
+                # Ensure the fetching state is visible even for quick responses
+                time.sleep(1.5)
                 ans = asyncio.run(
                     Runner.run(
                         qa_agent,
@@ -645,6 +662,11 @@ def main():
                         run_config=RunConfig(model=get_active_default_model(), tracing_disabled=True),
                     )
                 )
+                update_step(p_qna, "done", "Project Q&A Agent - Done")
+                render_progress_sidebar()
+                if qa_live:
+                    qa_live.write("● Project Q&A Agent - Done")
+                # Keep Q&A history visible; do not prune here
                 resp = (ans.final_output or "").strip()
                 # Save last Q&A, request clear, and rerun to safely reset the input
                 st.session_state["__qa_last_q"] = q.strip()
@@ -736,6 +758,17 @@ def main():
                     f"Items: {json.dumps(sb_items)}\n"
                     f"Question: {q_sb.strip()}"
                 )
+                # Remove any prior Q&A steps and show a live sidebar placeholder
+                # Keep prior Q&A history; add a new fetching entry without pruning
+                p_qna_sb = add_step("Project Q&A Agent - Fetching answer", "running")
+                render_progress_sidebar()
+                try:
+                    with st.sidebar:
+                        qa_live_sb = st.empty()
+                        qa_live_sb.write("○ Project Q&A Agent - Fetching answer")
+                except Exception:
+                    qa_live_sb = None
+                time.sleep(1.5)
                 ans_sb = asyncio.run(
                     Runner.run(
                         qa_agent,
@@ -743,6 +776,10 @@ def main():
                         run_config=RunConfig(model=get_active_default_model(), tracing_disabled=True),
                     )
                 )
+                update_step(p_qna_sb, "done", "Project Q&A Agent - Done")
+                render_progress_sidebar()
+                if qa_live_sb:
+                    qa_live_sb.write("● Project Q&A Agent - Done")
                 resp_sb = (ans_sb.final_output or "").strip()
                 st.session_state["__qa_last_q"] = q_sb.strip()
                 st.session_state["__qa_last_a"] = resp_sb

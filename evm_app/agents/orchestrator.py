@@ -6,6 +6,7 @@ from agents.run import Runner, RunConfig
 
 from ..config import get_active_default_model
 from ..ui.trace import log_event
+from ..ui.progress import add_step, update_step
 from .ingestion_agent import ingestion_agent
 from .evms_calculator_agent import evms_calculator_agent
 from .risk_analyst_agent import risk_analyst_agent
@@ -23,6 +24,8 @@ async def get_ingestion_summary(csv_text: str) -> str:
             "to": "Ingestion Agent",
         },
     )
+    # Sidebar progress: show active agent while fetching
+    p = add_step("Ingestion Agent — Parse & validate CSV", "running")
     result = await Runner.run(
         ingestion_agent,
         input=(
@@ -32,6 +35,8 @@ async def get_ingestion_summary(csv_text: str) -> str:
         ),
         run_config=RunConfig(model=get_active_default_model(), tracing_disabled=True),
     )
+    update_step(p, "done")
+    # Keep history visible until a new orchestrator run
     log_event("agent_result", "Ingestion Agent response", {"text": result.final_output})
     return result.final_output
 
@@ -48,6 +53,7 @@ async def get_evms_report(csv_text: str, as_of_date: Optional[str] = None) -> st
             "to": "EVM Calculator Agent",
         },
     )
+    p = add_step("EVM Calculator Agent — Compute portfolio metrics", "running")
     result = await Runner.run(
         evms_calculator_agent,
         input=(
@@ -58,6 +64,8 @@ async def get_evms_report(csv_text: str, as_of_date: Optional[str] = None) -> st
         ),
         run_config=RunConfig(model=get_active_default_model(), tracing_disabled=True),
     )
+    update_step(p, "done")
+    # Keep history visible until a new orchestrator run
     log_event("agent_result", "EVM Calculator response", {"text": result.final_output})
     return result.final_output
 
@@ -74,6 +82,7 @@ async def get_risk_assessment(evms_result_json: str) -> str:
             "to": "Risk Analyst Agent",
         },
     )
+    p = add_step("Risk Analyst Agent — Assess risks", "running")
     result = await Runner.run(
         risk_analyst_agent,
         input=(
@@ -83,6 +92,8 @@ async def get_risk_assessment(evms_result_json: str) -> str:
         ),
         run_config=RunConfig(model=get_active_default_model(), tracing_disabled=True),
     )
+    update_step(p, "done")
+    # Keep history visible until a new orchestrator run
     log_event("agent_result", "Risk Analyst response", {"text": result.final_output})
     return result.final_output
 

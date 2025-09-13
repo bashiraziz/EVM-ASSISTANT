@@ -38,6 +38,7 @@ def _normalize(text: str) -> str:
         text = str(text)
     for ch in ("—", "–", "−"):
         text = text.replace(ch, "-")
+    # Collapse multiple spaces around dashes
     text = " ".join(text.split())
     return text.strip()
 
@@ -69,6 +70,7 @@ def prune_completed(max_items: int = 4):
     items = st.session_state.get(PROG_KEY, [])
     running = [it for it in items if (it.get("status", "").lower() == "running")]
     completed = [it for it in items if (it.get("status", "").lower() == "done")]
+    # Keep the most recent completed entries up to the remaining slots
     remaining_slots = max(0, max_items - len(running))
     completed_kept = completed[-remaining_slots:] if remaining_slots < len(completed) else completed
     st.session_state[PROG_KEY] = running + completed_kept
@@ -78,6 +80,7 @@ def render_sidebar():
     _ensure()
     items: List[Dict[str, str]] = st.session_state.get(PROG_KEY, [])
     if not items:
+        # Clear prior placeholder if present so the block disappears when empty
         ph = st.session_state.get(_PH_KEY)
         if ph is not None:
             try:
@@ -85,6 +88,7 @@ def render_sidebar():
             except Exception:
                 pass
         return
+    # Create or reuse a single placeholder in the sidebar and clear it
     ph = st.session_state.get(_PH_KEY)
     if ph is None:
         ph = st.sidebar.empty()
@@ -96,6 +100,7 @@ def render_sidebar():
             pass
     with ph.container():
         st.markdown("### Working")
+        # Inject lightweight animation styles once
         if not st.session_state.get(_CSS_KEY):
             st.markdown(
                 """
@@ -114,19 +119,16 @@ def render_sidebar():
             )
             st.session_state[_CSS_KEY] = True
         for it in items:
-            raw_label = it.get("label", "...")
-            label = raw_label or "..."
+            raw_label = it.get("label", "…")
+            label = raw_label or "…"
             status = (it.get("status") or "").lower()
             if status == "done":
+                # Enforce green check and append " — Done" once
                 if not label.rstrip().endswith("Done"):
-                    label = f"{label} &mdash; Done"
-                # Use inline SVG for a reliable green check across themes
+                    label = f"{label} — Done"
                 html = (
                     "<div class='agent-row'>"
-                    "<span aria-label='done'>"
-                    "<svg width='12' height='12' viewBox='0 0 16 16' xmlns='http://www.w3.org/2000/svg'>"
-                    "<path fill='#16a34a' d='M6.173 12.414L2.222 8.464l1.414-1.414 2.537 2.536 6.192-6.192 1.414 1.415z'/></svg>"
-                    "</span>"
+                    "<span class='done-dot' style='color:#16a34a !important' aria-label='done'>✓</span>"
                     f"<span class='agent-label'>{label}</span>"
                     "</div>"
                 )
@@ -140,7 +142,7 @@ def render_sidebar():
             else:
                 html = (
                     "<div class='agent-row'>"
-                    "<span class='fail-dot' aria-label='failed'>&#10005;</span>"
+                    "<span class='fail-dot' aria-label='failed'>×</span>"
                     f"<span class='agent-label'>{label}</span>"
                     "</div>"
                 )
@@ -155,3 +157,6 @@ __all__ = [
     "prune_completed",
     "render_sidebar",
 ]
+
+
+

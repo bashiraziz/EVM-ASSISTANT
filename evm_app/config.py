@@ -57,7 +57,7 @@ def get_active_default_model() -> str:
     try:
         import streamlit as st  # local import to avoid CLI import cost
         if in_streamlit():
-            ui_val = st.session_state.get("__model_default__")
+            ui_val = st.session_state.get("__mdl_default__") or st.session_state.get("__model_default__")
     except Exception:
         pass
     if ui_val:
@@ -70,7 +70,7 @@ def get_active_summary_model() -> str:
     try:
         import streamlit as st
         if in_streamlit():
-            ui_val = st.session_state.get("__model_summary__")
+            ui_val = st.session_state.get("__mdl_summary__") or st.session_state.get("__model_summary__")
     except Exception:
         pass
     if ui_val:
@@ -134,11 +134,11 @@ def load_url_params_into_state():
 
         if "md" in qp and qp["md"]:
             st.session_state.setdefault(
-                "__model_default__", (qp["md"][0] if isinstance(qp["md"], list) else qp["md"])
+                "__mdl_default__", (qp["md"][0] if isinstance(qp["md"], list) else qp["md"])
             )
         if "ms" in qp and qp["ms"]:
             st.session_state.setdefault(
-                "__model_summary__", (qp["ms"][0] if isinstance(qp["ms"], list) else qp["ms"])
+                "__mdl_summary__", (qp["ms"][0] if isinstance(qp["ms"], list) else qp["ms"])
             )
         # thresholds handled by UI
     except Exception:

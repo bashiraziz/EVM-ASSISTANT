@@ -156,7 +156,11 @@ def render_evms_colored_table(items: List[Dict[str, Any]], totals: Dict[str, Any
 
 
 def render_totals_chips(totals: Dict[str, Any]):
-    """Compact portfolio totals as a responsive chip grid (2x4)."""
+    """Compact portfolio totals as a responsive chip grid (2x4) with a clear header.
+
+    Clarifies that values are portfolio-level aggregates/derived metrics. If an
+    `AsOf` key is present in `totals`, it is displayed alongside the heading.
+    """
     def fmt_money(v: Optional[float]) -> str:
         try:
             return f"${abs(float(v)):,}" if float(v) >= 0 else f"-${abs(float(v)):,}"
@@ -209,8 +213,16 @@ def render_totals_chips(totals: Dict[str, Any]):
                 pass
         return style
 
+    as_of = tot.get("AsOf")
+    base_note = "Sum/derived across all projects"
+    subtitle_text = f"{base_note} • As Of: {as_of}" if as_of else base_note
+    subtitle = f"<span style='opacity:.75;margin-left:8px'>{subtitle_text}</span>"
     html = [
         "<div style='margin:8px 0'>",
+        "<div style='display:flex;align-items:baseline;gap:8px;margin-bottom:6px'>",
+        "<div style='font-weight:700'>Portfolio Totals</div>",
+        subtitle,
+        "</div>",
         "<div style='display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px'>",
     ]
     def trend_for(label: str, raw_value: Any) -> str:

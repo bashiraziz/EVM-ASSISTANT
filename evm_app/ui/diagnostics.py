@@ -30,9 +30,12 @@ async def _ping_model(model_name: str) -> Tuple[bool, str]:
         tool_use_behavior="run_llm_again",
     )
     try:
+        import time as _t
+        t0 = _t.perf_counter()
         res = await Runner.run(test_agent, "Say OK", run_config=RunConfig(model=model_name))
+        dt = (_t.perf_counter() - t0) * 1000.0
         ok = (res.final_output or "").strip().upper() == "OK"
-        return ok, ("OK" if ok else f"Unexpected output: {res.final_output!r}")
+        return ok, (f"OK • {dt:.0f} ms" if ok else f"Unexpected output: {res.final_output!r}")
     except Exception as e:
         return False, f"{type(e).__name__}: {e}"
 
@@ -50,24 +53,38 @@ def _run_async_in_new_loop(coro):
 
 def render_diagnostics_panel():
     with st.expander("Diagnostics", expanded=False):
-        st.write("Environment (redacted)")
-        st.json(
-            {
-                "Provider": PROVIDER,
-                "DefaultModel": get_active_default_model(),
-                "SummaryModel": get_active_summary_model(),
-                "OPENAI_API_KEY": _redact(os.getenv("OPENAI_API_KEY")),
-                "OPENAI_PROJECT_ID": _redact(os.getenv("OPENAI_PROJECT_ID")),
-                "OPENAI_ORG_ID": _redact(os.getenv("OPENAI_ORG_ID")),
-                "GEMINI_API_KEY": _redact(os.getenv("GEMINI_API_KEY")),
-                "LITELLM_LOG": os.getenv("LITELLM_LOG", "-"),
-            }
-        )
+        col_a, col_b = st.columns([2, 3])
+        with col_a:
+            st.markdown("#### Environment")
+            st.markdown(
+                f"- Provider: `{PROVIDER}`\n"
+                f"- Default Model: `{get_active_default_model()}`\n"
+                f"- Summary Model: `{get_active_summary_model()}`\n",
+            )
+        with col_b:
+            st.markdown("#### Secrets (redacted)")
+            st.code(
+                "\n".join(
+                    [
+                        f"OPENAI_API_KEY={_redact(os.getenv('OPENAI_API_KEY'))}",
+                        f"OPENAI_PROJECT_ID={_redact(os.getenv('OPENAI_PROJECT_ID'))}",
+                        f"OPENAI_ORG_ID={_redact(os.getenv('OPENAI_ORG_ID'))}",
+                        f"GEMINI_API_KEY={_redact(os.getenv('GEMINI_API_KEY'))}",
+                        f"LITELLM_LOG={os.getenv('LITELLM_LOG', '-')}",
+                    ]
+                ),
+                language="bash",
+            )
 
-        if st.button("Run model health check"):
-            with st.spinner("Pinging selected model..."):
-                ok, msg = _run_async_in_new_loop(_ping_model(get_active_default_model()))
-            (st.success if ok else st.error)(msg)
+        st.divider()
+        col1, col2 = st.columns([1, 3])
+        with col1:
+            if st.button("Run model health check"):
+                with st.spinner("Pinging selected model…"):
+                    ok, msg = _run_async_in_new_loop(_ping_model(get_active_default_model()))
+                (st.success if ok else st.error)(msg)
+        with col2:
+            st.caption("Checks a minimal round-trip to the selected default model and reports latency.")
 
 
 __all__ = ["render_diagnostics_panel"]

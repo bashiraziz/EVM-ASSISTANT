@@ -62,12 +62,14 @@ from evm_app.ui.tables import render_cpi_spi_heatmap, render_evms_colored_table,
 from evm_app.ui.theme import inject_theme
 from evm_app.ui.progress import (
     render_sidebar as render_progress_sidebar,
+    set_sidebar_badges,
     reset_progress,
     add_step,
     update_step,
     remove_steps_by_prefix,
     prune_completed,
 )
+from evm_app.ui.toolbar import render_results_toolbar
 # Trace UI removed per request; core logging remains internal
 
 # Disable/neutralize LiteLLM's background LoggingWorker to avoid event-loop issues/warnings in Streamlit
@@ -341,6 +343,12 @@ def main():
     with top_col:
         st.markdown("<div class='link-right'><a class='link-btn' href='#top'>Back to top</a></div>", unsafe_allow_html=True)
 
+    # Keep sidebar badges in sync
+    try:
+        set_sidebar_badges(PROVIDER, get_active_default_model(), get_active_summary_model())
+    except Exception:
+        pass
+
     # When starting a new run, clear progress immediately so the sidebar starts fresh
     if run_clicked:
         reset_progress()
@@ -549,6 +557,9 @@ def main():
                 file_name=dl_name,
                 mime=dl_mime,
             )
+
+            # Compact context toolbar above results
+            render_results_toolbar(items, totals)
 
             st.markdown("### Portfolio Heatmap")
             render_cpi_spi_heatmap(items)

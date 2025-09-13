@@ -6,6 +6,7 @@ import streamlit as st
 PROG_KEY = "__progress_items__"
 _CSS_KEY = "__progress_css_injected__"
 _PH_KEY = "__progress_placeholder__"
+_BADGES_KEY = "__sidebar_badges__"
 
 
 def _ensure():
@@ -74,6 +75,18 @@ def prune_completed(max_items: int = 4):
     st.session_state[PROG_KEY] = running + completed_kept
 
 
+def set_sidebar_badges(provider: str, default_model: str, summary_model: str):
+    """Set compact sidebar badges that render above the progress list.
+
+    Keep data in session_state to avoid import cycles; call before render_sidebar().
+    """
+    st.session_state[_BADGES_KEY] = {
+        "provider": provider,
+        "default_model": default_model,
+        "summary_model": summary_model,
+    }
+
+
 def render_sidebar():
     _ensure()
     items: List[Dict[str, str]] = st.session_state.get(PROG_KEY, [])
@@ -95,6 +108,22 @@ def render_sidebar():
         except Exception:
             pass
     with ph.container():
+        # Top badges (provider + models)
+        badges = st.session_state.get(_BADGES_KEY)
+        if badges:
+            prov = badges.get("provider", "-")
+            dmdl = badges.get("default_model", "-")
+            smdl = badges.get("summary_model", "-")
+            st.markdown(
+                (
+                    "<div style='display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px'>"
+                    f"<span style='font-size:11px;padding:3px 6px;border:1px solid #2a2f3a;border-radius:999px;background:#0b1220'>Provider: {prov}</span>"
+                    f"<span style='font-size:11px;padding:3px 6px;border:1px solid #2a2f3a;border-radius:999px;background:#0b1220'>Model: {dmdl}</span>"
+                    f"<span style='font-size:11px;padding:3px 6px;border:1px solid #2a2f3a;border-radius:999px;background:#0b1220'>Summary: {smdl}</span>"
+                    "</div>"
+                ),
+                unsafe_allow_html=True,
+            )
         st.markdown("### Working")
         if not st.session_state.get(_CSS_KEY):
             st.markdown(

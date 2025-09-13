@@ -511,7 +511,7 @@ def main():
         totals = st.session_state.get("evms_totals") or {}
         if report_ss:
             st.markdown("### Final Report")
-            with st.expander("Show detailed narrative report", expanded=False):
+            with st.expander("Executive Summary & Narrative", expanded=False):
                 st.markdown(report_ss or "(no response)")
             # Download options: MD, TXT, HTML, JSON
             dl_fmt = st.selectbox(

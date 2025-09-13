@@ -205,7 +205,7 @@ def main():
         /* Gentle vertical alignment for the run button next to uploader */
         .run-upload-wrap { padding-top: 22px; }
         /* Evenly spaced trio of links under uploader */
-        .link-trio { display:flex; justify-content:space-between; align-items:center; gap:12px; width:100%; padding-top:8px; }
+        .link-trio { display:flex; justify-content:space-around; align-items:center; gap:12px; width:100%; padding-top:8px; }
         </style>
         """,
         unsafe_allow_html=True,
@@ -352,6 +352,14 @@ def main():
         up_col, run_col = st.columns([3, 1.2])
         with up_col:
             file = st.file_uploader("Upload CSV (project_template.csv format)", type=["csv"])
+            # Validate file size against 20MB limit (also enforced via .streamlit/config.toml)
+            MAX_MB = 20
+            MAX_BYTES = MAX_MB * 1024 * 1024
+            if file is not None and getattr(file, "size", 0) > MAX_BYTES:
+                st.error(f"File is too large. Max allowed is {MAX_MB} MB.")
+                st.session_state["__oversize_file__"] = True
+            else:
+                st.session_state.pop("__oversize_file__", None)
         with run_col:
             st.markdown("<div class='run-upload-wrap'>", unsafe_allow_html=True)
             st.markdown("<div class='primary-cta'>", unsafe_allow_html=True)
@@ -387,6 +395,10 @@ def main():
             "</div>",
             unsafe_allow_html=True,
         )
+
+    # If oversize, suppress any run via upload even if clicked
+    if st.session_state.get("__oversize_file__"):
+        run_clicked_upload = False
 
     # A dedicated results area that renders BELOW inputs and the button
     st.markdown("<a name='results'></a>", unsafe_allow_html=True)

@@ -132,7 +132,7 @@ def render_sidebar():
                 .agent-row{display:flex;align-items:center;gap:8px;margin:2px 0;}
                 .agent-label{flex:1;}
                 .pulse-dot{width:8px;height:8px;border-radius:999px;background:var(--acc1,#0b6cf0);
-                           box-shadow:0 0 0 0 rgba(11,108,240,.6);animation:pulse 1.5s infinite;}
+                           box-shadow:0 0 0 0 rgba(11,108,240,.6);animation:pulse 1.0s infinite;}
                 @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(11,108,240,.6);}70%{box-shadow:0 0 0 9px rgba(11,108,240,0);}100%{box-shadow:0 0 0 0 rgba(11,108,240,0);}}
                 .done-dot{color:#16a34a;}
                 .done-dot, .done-dot * {color:#16a34a !important}

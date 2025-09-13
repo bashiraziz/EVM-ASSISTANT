@@ -195,6 +195,8 @@ def main():
         unsafe_allow_html=True,
     )
 
+    # (Header links removed per request; links remain in footer)
+
     # Load shareable URL params (models, thresholds)
     load_url_params_into_state()
     # Handle reset via URL param (?reset=1) so we can style it like a link
@@ -302,6 +304,10 @@ def main():
     )
     sample_text = get_sample_csv_text()
     st.download_button("Get CSV Template", data=sample_text, file_name="evms_sample.csv", mime="text/csv")
+    # Optional: show a hosted direct-download link if configured
+    _sample_url = os.getenv("SAMPLE_CSV_URL")
+    if _sample_url:
+        st.markdown(f"Or download from: [Hosted CSV]({_sample_url})")
     with st.expander("See template headers", expanded=False):
         st.code(sample_text.splitlines()[0] + "\n...", language="csv")
 
@@ -809,6 +815,22 @@ def main():
 
         # About panel (collapsed expander)
         render_about_panel()
+
+    # Footer links on main page
+    _repo_url = "https://github.com/bashiraziz/EVM-ASSISTANT"
+    _readme_url = _repo_url + "/blob/main/README.md"
+    _deploy_url = _repo_url + "/blob/main/DEPLOY.md"
+    st.markdown("<hr>", unsafe_allow_html=True)
+    st.markdown(
+        f"""
+        <div class='link-row'>
+          <a class='link-btn' href='{_repo_url}' target='_blank'>GitHub Repo</a>
+          <a class='link-btn' href='{_readme_url}' target='_blank'>README</a>
+          <a class='link-btn' href='{_deploy_url}' target='_blank'>DEPLOY</a>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 if __name__ == "__main__":

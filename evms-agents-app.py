@@ -183,13 +183,29 @@ def main():
     st.title("EVM Assistant")
     # Subtle pill-style link buttons
     st.markdown(
-        """
+            """
         <style>
         .link-btn {display:inline-block; padding:6px 12px; border:1px solid rgba(255,255,255,0.25);
                    border-radius:999px; text-decoration:none; color:inherit; font-size:0.9rem;}
         .link-btn:hover {background:rgba(255,255,255,0.06); text-decoration:none;}
         .link-row {display:flex; gap:10px; align-items:center;}
         .link-right {text-align:right; padding-top:6px;}
+        /* Make primary call-to-action buttons look like the uploader tile */
+        .primary-cta .stButton>button {
+            width: 100%;
+            background: #2b2d33 !important; /* match uploader tile */
+            color: #ffffff !important;
+            border: 1px solid rgba(255,255,255,0.25) !important;
+            border-radius: 10px !important;
+            padding: 10px 16px !important;
+            white-space: nowrap; /* keep on one line */
+        }
+        /* Wrapper used for prominent run buttons */
+        .primary-cta { display:flex; align-items:center; justify-content:center; }
+        /* Gentle vertical alignment for the run button next to uploader */
+        .run-upload-wrap { padding-top: 22px; }
+        /* Evenly spaced trio of links under uploader */
+        .link-trio { display:flex; justify-content:space-between; align-items:center; gap:12px; width:100%; padding-top:8px; }
         </style>
         """,
         unsafe_allow_html=True,
@@ -303,13 +319,22 @@ def main():
         "Upload a CSV matching the template headers to compute EVM metrics and summarize portfolio health."
     )
     sample_text = get_sample_csv_text()
-    st.download_button("Get CSV Template", data=sample_text, file_name="evms_sample.csv", mime="text/csv")
+    col_dl, col_run_sample, col_headers = st.columns([1, 1, 1.4])
+    with col_dl:
+        st.download_button("Get CSV Template", data=sample_text, file_name="evms_sample.csv", mime="text/csv")
+    with col_run_sample:
+        run_sample_clicked = st.button(
+            "Run Sample Analysis",
+            help="Loads the built-in sample CSV and runs the analysis",
+            key="run_sample_btn",
+        )
+    with col_headers:
+        with st.expander("Template Headers", expanded=False):
+            st.code(sample_text.splitlines()[0] + "\n...", language="csv")
     # Optional: show a hosted direct-download link if configured
     _sample_url = os.getenv("SAMPLE_CSV_URL")
     if _sample_url:
         st.markdown(f"Or download from: [Hosted CSV]({_sample_url})")
-    with st.expander("See template headers", expanded=False):
-        st.code(sample_text.splitlines()[0] + "\n...", language="csv")
 
     as_of_date = st.date_input("As-of date (optional)")
     mode = st.radio(
@@ -322,8 +347,17 @@ def main():
     input_mode = st.radio("Input method", ["Upload CSV", "Paste CSV"], horizontal=True)
     pasted_csv_text: Optional[str] = None
     file = None
+    run_clicked_upload = False
     if input_mode == "Upload CSV":
-        file = st.file_uploader("Upload CSV (project_template.csv format)", type=["csv"])
+        up_col, run_col = st.columns([3, 1.2])
+        with up_col:
+            file = st.file_uploader("Upload CSV (project_template.csv format)", type=["csv"])
+        with run_col:
+            st.markdown("<div class='run-upload-wrap'>", unsafe_allow_html=True)
+            st.markdown("<div class='primary-cta'>", unsafe_allow_html=True)
+            run_clicked_upload = st.button("Run EVM Analysis", key="run_btn_upload")
+            st.markdown("</div>", unsafe_allow_html=True)
+            st.markdown("</div>", unsafe_allow_html=True)
     else:
         pasted_csv_text = st.text_area(
             "Paste CSV content",
@@ -332,25 +366,47 @@ def main():
         )
 
     # Helpers: reset state + quick links
-    col_links1, col_reset = st.columns([3, 1])
-    with col_links1:
-        st.markdown("<div class='link-row'><a class='link-btn' href='#results'>Scroll to results</a></div>", unsafe_allow_html=True)
-    with col_reset:
-        # Reset as a pill-style link that triggers a rerun with ?reset=1
-        st.markdown("<div class='link-right'><a class='link-btn' href='?reset=1#top'>Reset</a></div>", unsafe_allow_html=True)
+    # Place three links evenly spaced; under the Upload column when in Upload mode
+    if input_mode == "Upload CSV":
+        with up_col:
+            st.markdown(
+                "<div class='link-trio'>"
+                "<a class='link-btn' href='#results'>Scroll to results</a>"
+                "<a class='link-btn' href='#top'>Back to top</a>"
+                "<a class='link-btn' href='?reset=1#top'>Reset</a>"
+                "</div>",
+                unsafe_allow_html=True,
+            )
+    else:
+        # In paste mode, render full-width trio centered by Streamlit's column
+        st.markdown(
+            "<div class='link-trio'>"
+            "<a class='link-btn' href='#results'>Scroll to results</a>"
+            "<a class='link-btn' href='#top'>Back to top</a>"
+            "<a class='link-btn' href='?reset=1#top'>Reset</a>"
+            "</div>",
+            unsafe_allow_html=True,
+        )
 
     # A dedicated results area that renders BELOW inputs and the button
     st.markdown("<a name='results'></a>", unsafe_allow_html=True)
     results_area = st.container()
 
-    # Submit + Back to top link side-by-side
-    btn_col, top_col = st.columns([1, 1])
-    with btn_col:
-        st.markdown("<div class='primary-cta'>", unsafe_allow_html=True)
-        run_clicked = st.button("▶ Run EVM Analysis")
-        st.markdown("</div>", unsafe_allow_html=True)
-    with top_col:
-        st.markdown("<div class='link-right'><a class='link-btn' href='#top'>Back to top</a></div>", unsafe_allow_html=True)
+    # Submit button row (only for Paste mode)
+    run_clicked = False
+    if input_mode == "Paste CSV":
+        btn_col = st.columns([1])[0]
+        with btn_col:
+            st.markdown("<div class='primary-cta'>", unsafe_allow_html=True)
+            run_clicked = st.button("▶ Run EVM Analysis", key="run_btn_paste")
+            st.markdown("</div>", unsafe_allow_html=True)
+    # Back to top link moved next to Reset above
+
+    # Any run trigger (primary button, upload-row button, or sample pill)
+    run_clicked_any = (
+        (('run_clicked' in locals() and run_clicked) or ('run_clicked_upload' in locals() and run_clicked_upload))
+        or (run_sample_clicked if 'run_sample_clicked' in locals() else False)
+    )
 
     # Keep sidebar badges in sync
     try:
@@ -359,15 +415,29 @@ def main():
         pass
 
     # When starting a new run, clear progress immediately so the sidebar starts fresh
-    if run_clicked:
+    try:
+        _run_now = run_clicked_any
+    except NameError:
+        _run_now = run_clicked
+    if _run_now:
         reset_progress()
         render_progress_sidebar()
     else:
         # Idle render to show any existing statuses
         render_progress_sidebar()
 
-    if run_clicked:
-        csv_text = (file.read().decode("utf-8") if file else pasted_csv_text) or ""
+    # Use the combined run flag if available
+    try:
+        _run_now = run_clicked_any
+    except NameError:
+        _run_now = run_clicked
+
+    if _run_now:
+        # If the sample pill was clicked, ignore other inputs and use sample text
+        if 'run_sample_clicked' in locals() and run_sample_clicked:
+            csv_text = sample_text
+        else:
+            csv_text = (file.read().decode("utf-8") if file else pasted_csv_text) or ""
         if not csv_text:
             st.error("Please provide CSV input.")
             st.stop()
@@ -674,7 +744,7 @@ def main():
                 except Exception:
                     qa_live = None
                 # Ensure the fetching state is visible even for quick responses
-                time.sleep(1.5)
+                time.sleep(1.0)
                 ans = asyncio.run(
                     Runner.run(
                         qa_agent,
@@ -790,7 +860,7 @@ def main():
                         qa_live_sb.write("○ Project Q&A Agent - Fetching answer")
                 except Exception:
                     qa_live_sb = None
-                time.sleep(1.5)
+                time.sleep(1.0)
                 ans_sb = asyncio.run(
                     Runner.run(
                         qa_agent,

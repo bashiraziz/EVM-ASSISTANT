@@ -143,13 +143,34 @@ def _maybe_map_headers_ui(csv_text: str) -> str:
 
         st.warning("CSV headers do not match the expected template. Map columns below.")
         MISSING = "<missing>"
+        import hashlib as _hashlib
+
+        suffix_key = "__header_map_suffix__"
+        signature_key = "__header_map_signature__"
+        cache_key = "__header_map_cache__"
+        existing_suffix = st.session_state.get(suffix_key, 0)
+        signature = (tuple(options), _hashlib.sha256(csv_text.encode("utf-8")).hexdigest())
+
+        cache = st.session_state.get(cache_key, {})
+        cached = cache.get(signature)
+        if cached is not None:
+            return cached
+
+        if st.session_state.get(signature_key) != signature:
+            existing_suffix += 1
+            st.session_state[suffix_key] = existing_suffix
+            st.session_state[signature_key] = signature
+        else:
+            st.session_state.setdefault(suffix_key, existing_suffix)
+        form_suffix = st.session_state.get(suffix_key, existing_suffix)
+
         mapping: Dict[str, str] = {}
-        with st.form("header_map_form"):
+        with st.form(f"header_map_form_{form_suffix}"):
             for h in EXPECTED_HEADERS:
                 choices = options if h in options else options + [MISSING]
                 default_idx = choices.index(h) if h in options else choices.index(MISSING)
                 mapping[h] = st.selectbox(
-                    f"Map to '{h}'", options=choices, index=default_idx, key=f"map_{h}"
+                    f"Map to '{h}'", options=choices, index=default_idx, key=f"map_{form_suffix}_{h}"
                 )
             apply = st.form_submit_button("Apply Mapping & Continue")
         if not apply:
@@ -167,7 +188,23 @@ def _maybe_map_headers_ui(csv_text: str) -> str:
                 src = mapping.get(exp)
                 new_row[exp] = row.get(src, "") if src and src != MISSING else ""
             w.writerow(new_row)
-        return fout.getvalue()
+        mapped_csv = fout.getvalue()
+        cache = st.session_state.setdefault(cache_key, {})
+        cache[signature] = mapped_csv
+        st.success("Headers mapped to the expected template.")
+        st.download_button(
+            "Download mapped CSV",
+            data=mapped_csv,
+            mime="text/csv",
+            file_name="mapped_evms.csv",
+            key=f"mapped_csv_download_{form_suffix}"
+        )
+        preview = mapped_csv.splitlines()
+        if preview:
+            st.code("\n".join(preview[: min(6, len(preview))]), language="csv")
+        else:
+            st.code("(empty)", language="csv")
+        return mapped_csv
     except Exception:
         return csv_text
 

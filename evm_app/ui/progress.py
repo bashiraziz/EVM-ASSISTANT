@@ -76,6 +76,10 @@ def prune_completed(max_items: int = 4):
             completed.append(it)
         else:
             running.append(it)
+    if len(running) >= max_items:
+        st.session_state[PROG_KEY] = running[-max_items:]
+        return
+
     remaining_slots = max(0, max_items - len(running))
     if remaining_slots == 0:
         completed_kept: List[Dict[str, str]] = []
@@ -84,6 +88,8 @@ def prune_completed(max_items: int = 4):
     else:
         completed_kept = completed
     st.session_state[PROG_KEY] = running + completed_kept
+
+
 def set_sidebar_badges(provider: str, default_model: str, summary_model: str):
     """Set compact sidebar badges that render above the progress list.
 

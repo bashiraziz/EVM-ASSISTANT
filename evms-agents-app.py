@@ -146,10 +146,10 @@ def _maybe_map_headers_ui(csv_text: str) -> str:
         mapping: Dict[str, str] = {}
         with st.form("header_map_form"):
             for h in EXPECTED_HEADERS:
-                default_idx = options.index(h) if h in options else None
-                choices = options + ([MISSING] if h not in options else [])
+                choices = options if h in options else options + [MISSING]
+                default_idx = choices.index(h) if h in options else choices.index(MISSING)
                 mapping[h] = st.selectbox(
-                    f"Map to '{h}'", options=choices, index=(default_idx or 0), key=f"map_{h}"
+                    f"Map to '{h}'", options=choices, index=default_idx, key=f"map_{h}"
                 )
             apply = st.form_submit_button("Apply Mapping & Continue")
         if not apply:

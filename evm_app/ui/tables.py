@@ -109,13 +109,16 @@ def render_evms_colored_table(items: List[Dict[str, Any]], totals: Dict[str, Any
 
     header_bg = "#0f172a"  # sober dark navy
     header_style = f"background:{header_bg};color:#e2e8f0;border-bottom:1px solid #1f2937;"
+    header_cell_style = (
+        "text-align:left;padding:8px 10px;cursor:help;position:sticky;top:0;z-index:2;"
+        f"background:{header_bg};color:#e2e8f0;border-bottom:1px solid #1f2937;"
+    )
     html = [
         "<div style='margin-top:12px; overflow-x:auto; max-width:100%; max-height:60vh; overflow-y:auto'>",
         "<table style='border-collapse:collapse;width:100%'>",
         "<thead class='table-head' style='" + header_style + "'><tr>"
         + "".join(
-            (lambda _c: f"<th style='text-align:left;padding:8px 10px;cursor:help' title=\"{tooltips.get(_c, '')}\">{_c}</th>")
-            (c)
+            f"<th style='{header_cell_style}' title=\"{tooltips.get(c, '')}\">{c}</th>"
             for c in cols
         )
         + "</tr></thead>",

@@ -1,21 +1,21 @@
 ProjectID,ProjectName,Customer,CustomerContact,PM,Dept,PlannedCost,ActualCost,StartDate,EndDate,Status,ProgressPercent_Manual,ContractType
 P1001,New Website,Acme Corp,alice@acme.com,Sam,IT,100000,45000,2025-01-01,2025-12-31,Active,40,Fixed Price
-P1002,Mobile App,Globex,bob@globex.com,Kim,Product,200000,130000,2025-02-01,2025-11-30,Active,55,Time & Materials
-P1003,Data Migration,Initech,carol@initech.com,Raj,Ops,150000,90000,2025-03-15,2025-09-15,Active,35,Fixed Price
-P1004,Cloud Migration,Stark Industries,pepper@stark.com,Tony,IT,180000,150000,2025-01-15,2025-08-31,Active,100,Fixed Price
-P1005,CRM Revamp,Wayne Enterprises,lucius@wayne.com,Diana,Sales,220000,100000,2025-04-01,2025-12-15,Active,80,Time & Materials
-P1006,AI PoC,Oscorp,norm@oscorp.com,Peter,R&D,80000,60000,2025-05-01,2025-07-31,Active,95,Fixed Price
-P1007,ERP Upgrade,Wonka Inc,wonka@wonka.com,Violet,Ops,260000,220000,2025-02-15,2025-10-15,Active,65,Fixed Price
-P1008,Security Audit,Tyrell Corp,eldon@tyrell.com,Deckard,IT,60000,40000,2025-06-01,2025-09-30,Active,90,Time & Materials
-P1009,Analytics Platform,Soylent,soylent@food.com,Leah,Data,300000,340000,2025-03-01,2025-12-01,Active,55,Fixed Price
 P1010,Warehouse Automation,Acme Corp,alice@acme.com,Bruce,Ops,120000,50000,2025-07-01,2025-11-30,Active,44,Fixed Price
-P1011,Payment Gateway,Globex,bob@globex.com,Clark,Product,140000,160000,2025-01-20,2025-06-20,Active,85,Time & Materials
-P1012,ML Monitoring,Initech,carol@initech.com,Ram,R&D,90000,30000,2025-08-01,2025-12-31,Active,35,Fixed Price
-P1013,Data Lake,Stark Industries,pepper@stark.com,Natasha,Data,250000,130000,2025-02-01,2025-08-01,Active,60,Fixed Price
-P1014,Network Refresh,Wayne Enterprises,lucius@wayne.com,Barry,IT,70000,90000,2025-03-10,2025-05-30,Active,98,Time & Materials
-P1015,Chatbot Portal,Oscorp,norm@oscorp.com,Octavius,Support,50000,55000,2025-04-15,2025-09-15,Active,45,Fixed Price
-P1016,HR Onboarding,Wonka Inc,wonka@wonka.com,Charlie,HR,40000,15000,2025-05-01,2025-08-01,Active,100,Fixed Price
-P1017,Compliance Tool,Tyrell Corp,eldon@tyrell.com,Rachel,Legal,110000,60000,2025-01-05,2025-04-30,Active,75,Time & Materials
-P1018,Fleet Tracking,Soylent,soylent@food.com,Han,Ops,160000,170000,2025-06-01,2025-12-20,Active,48,Fixed Price
 P1019,Partner Portal,Acme Corp,alice@acme.com,Lois,Product,130000,80000,2025-02-20,2025-09-01,Active,55,Fixed Price
+P1002,Mobile App,Globex,bob@globex.com,Kim,Product,200000,130000,2025-02-01,2025-11-30,Active,55,Time & Materials
+P1011,Payment Gateway,Globex,bob@globex.com,Clark,Product,140000,160000,2025-01-20,2025-06-20,Active,85,Time & Materials
 P1020,Mobile Payments,Globex,bob@globex.com,Clark,Product,180000,120000,2025-03-01,2025-10-01,Active,50,Time & Materials
+P1003,Data Migration,Initech,carol@initech.com,Raj,Ops,150000,90000,2025-03-15,2025-09-15,Active,35,Fixed Price
+P1012,ML Monitoring,Initech,carol@initech.com,Ram,R&D,90000,30000,2025-08-01,2025-12-31,Active,35,Fixed Price
+P1006,AI PoC,Oscorp,norm@oscorp.com,Peter,R&D,80000,60000,2025-05-01,2025-07-31,Active,95,Fixed Price
+P1015,Chatbot Portal,Oscorp,norm@oscorp.com,Octavius,Support,50000,55000,2025-04-15,2025-09-15,Active,45,Fixed Price
+P1009,Analytics Platform,Soylent,soylent@food.com,Leah,Data,300000,340000,2025-03-01,2025-12-01,Active,55,Fixed Price
+P1018,Fleet Tracking,Soylent,soylent@food.com,Han,Ops,160000,170000,2025-06-01,2025-12-20,Active,48,Fixed Price
+P1004,Cloud Migration,Stark Industries,pepper@stark.com,Tony,IT,180000,150000,2025-01-15,2025-08-31,Active,100,Fixed Price
+P1013,Data Lake,Stark Industries,pepper@stark.com,Natasha,Data,250000,130000,2025-02-01,2025-08-01,Active,60,Fixed Price
+P1008,Security Audit,Tyrell Corp,eldon@tyrell.com,Deckard,IT,60000,40000,2025-06-01,2025-09-30,Active,90,Time & Materials
+P1017,Compliance Tool,Tyrell Corp,eldon@tyrell.com,Rachel,Legal,110000,60000,2025-01-05,2025-04-30,Active,75,Time & Materials
+P1005,CRM Revamp,Wayne Enterprises,lucius@wayne.com,Diana,Sales,220000,100000,2025-04-01,2025-12-15,Active,80,Time & Materials
+P1014,Network Refresh,Wayne Enterprises,lucius@wayne.com,Barry,IT,70000,90000,2025-03-10,2025-05-30,Active,98,Time & Materials
+P1007,ERP Upgrade,Wonka Inc,wonka@wonka.com,Violet,Ops,260000,220000,2025-02-15,2025-10-15,Active,65,Fixed Price
+P1016,HR Onboarding,Wonka Inc,wonka@wonka.com,Charlie,HR,40000,15000,2025-05-01,2025-08-01,Active,100,Fixed Price
